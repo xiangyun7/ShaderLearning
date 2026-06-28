@@ -1,0 +1,342 @@
+﻿#pragma kernel CS_Pinpu
+#pragma kernel CS_GongEPinpu
+#pragma kernel CS_Update
+#pragma kernel CS_HorizontalIFFT
+#pragma kernel CS_VerticalIFFT
+#pragma kernel CS_AssembleTextures
+#define PI 3.14159265359
+
+RWTexture2DArray<float4> pp_Texture;
+RWTexture2DArray<float4> UpdateTexture;
+RWTexture2DArray<float4> FourierTexture, _DisplacementTexture;
+RWTexture2DArray<float4> _SlopeTexture;
+int _Resolution;
+float _LengthScale;
+float _Gravity;
+float _Depth;
+float _LowCutOff;
+float _HighCutOff;
+int _Seed;
+float _RepeatTime, _FrameTime;
+float2 _WaveSharp;
+float _FoamBias, _FoamDecayRate, _FoamAdd, _FoamPower;
+
+struct JONSWAP_Parameters
+{
+    float scale; // 频谱整体强度
+    float angle; // 风向，弧度
+    float alpha; // JONSWAP 能量系数
+    float peakOmega; // 峰值角频率
+    float gamma; // 峰值增强
+};
+
+StructuredBuffer<JONSWAP_Parameters> _JonswapParameters;
+
+
+//function mode
+
+float Hash(uint n)
+{
+    n = (n << 13U) ^ n;
+    n = n * (n * n * 15731U + 789221U) + 1376312589U;
+    return float(n & 0x7fffffffU) / float(0x7fffffff);
+}
+float2 Gaussian(uint seed)
+{
+    float u1 = max(Hash(seed), 1e-6);
+    float u2 = Hash(seed + 1U);
+
+    float r = sqrt(-2.0 * log(u1));
+    float theta = 2.0 * PI * u2;
+
+    return float2(r * cos(theta), r * sin(theta));
+}
+
+float Dispersion(float k)
+{
+    return sqrt(_Gravity * k * tanh(min(k * _Depth, 20.0)));
+}
+
+float DispersionDerivative(float k)
+{
+    float h = min(k * _Depth, 20.0);
+    float tanH = tanh(h);
+    float cosH = cosh(h);
+    float omega = max(Dispersion(k), 1e-6);
+
+    return _Gravity * (_Depth * k / (cosH * cosH) + tanH) / (2.0 * omega);
+}
+
+float TMACorrection(float omega)
+{
+    float omegaH = omega * sqrt(_Depth / _Gravity);
+
+    if (omegaH <= 1.0)
+    {
+        return 0.5 * omegaH * omegaH;
+    }
+
+    if (omegaH < 2.0)
+    {
+        float t = 2.0 - omegaH;
+        return 1.0 - 0.5 * t * t;
+    }
+
+    return 1.0;
+}
+float JONSWAP(float omega, JONSWAP_Parameters p)
+{
+    omega = max(omega, 1e-6);
+    p.peakOmega = max(p.peakOmega, 1e-6);
+    p.gamma = max(p.gamma, 1e-6);
+
+    float sigma = omega <= p.peakOmega ? 0.07 : 0.09;
+    float peakRatio = p.peakOmega / omega;
+
+    float r = exp(
+        -((omega - p.peakOmega) * (omega - p.peakOmega))
+        / (2.0 * sigma * sigma * p.peakOmega * p.peakOmega)
+    );
+
+    float spectrum =
+        p.scale
+        * p.alpha
+        * _Gravity * _Gravity
+        * pow(omega, -5.0)
+        * exp(-1.25 * pow(peakRatio, 4.0))
+        * pow(p.gamma, r);
+
+    return spectrum * TMACorrection(omega);
+}
+
+float DirectionWeight(float2 k, float angle)
+{
+    float2 windDir = float2(cos(angle), sin(angle));
+    float2 kDir = normalize(k);
+
+    float d = abs(dot(kDir, windDir));
+    return d * d;
+}
+
+float2 EulerFormula(float x)
+{
+    return float2(cos(x), sin(x));
+
+}
+
+float2 ComplexMul(float2 a, float2 b)
+{
+    return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+//Kernel
+[numthreads(8,8,1)]
+void CS_Pinpu(uint3 id : SV_DISPATCHTHREADID)
+{
+    uint resolution = (uint) _Resolution;
+
+    if (id.x >= resolution || id.y >= resolution)
+    {
+        return;
+    }
+    float halfResolution = resolution * 0.5;
+    // deltaK 是频谱格子的间隔，LengthScale 越大，频率间隔越细。
+    float deltaK = 2.0 * PI / _LengthScale;
+    // 把纹理坐标 id.xy 转成以中心为 0 的频率坐标 k。
+    float2 k = (float2(id.xy) - halfResolution) * deltaK;
+    float kLength = length(k);
+
+    if (kLength < _LowCutOff || kLength > _HighCutOff)
+    {
+        pp_Texture[uint3(id.xy, 0)] = float4(0, 0, 0, 0);
+        return;
+    }//把高频波和低频波删除
+    
+    JONSWAP_Parameters p = _JonswapParameters[0];
+    
+    // 通过色散关系把 k 转成角频率 omega。
+    float omega = Dispersion(kLength);
+
+    // JONSWAP 给出这个频率的能量。
+    float spectrum = JONSWAP(omega, p);
+
+    // 方向权重让波沿风向分布。
+    spectrum *= DirectionWeight(k, p.angle);
+
+    // JONSWAP 是 omega 频域的能量，这里转换到 k 空间的频谱采样尺度。
+    float dOmegadk = DispersionDerivative(kLength);
+    float amplitude = sqrt(max(0.0, spectrum * 2.0 * abs(dOmegadk) / kLength * deltaK * deltaK));
+
+    // 每个频谱像素用不同 seed 生成稳定高斯随机数。
+    uint seed = id.x + id.y * (uint) resolution + (uint) _Seed * 131U;
+    float2 gaussian = Gaussian(seed);
+
+    // h0(k)：初始频谱复数，x 是实部，y 是虚部。
+    float2 h0 = gaussian * amplitude;
+
+    pp_Texture[uint3(id.xy, 0)] = float4(h0.x, h0.y, 0.0, 0.0);
+    
+}
+
+[numthreads(8, 8, 1)]
+void CS_GongEPinpu(uint3 id : SV_DISPATCHTHREADID)
+{
+    uint resolution = (uint) _Resolution;
+
+    if (id.x >= resolution || id.y >= resolution)
+    {
+        return;
+    }
+
+    float2 h0 = pp_Texture[uint3(id.xy, 0)].rg;
+
+    uint2 negativeCoord = uint2(
+        (resolution - id.x) % resolution,
+        (resolution - id.y) % resolution
+    );
+
+    float2 h0MinusK = pp_Texture[uint3(negativeCoord, 0)].rg;
+
+    pp_Texture[uint3(id.xy, 0)] = float4(
+        h0.x,
+        h0.y,
+        h0MinusK.x,
+        -h0MinusK.y
+    );
+}
+[numthreads(8, 8, 1)]
+void CS_Update(uint3 id : SV_DISPATCHTHREADID)
+{
+    //提取初始频谱
+    float4 Initial = pp_Texture[uint3(id.xy, 0)];
+    float2 h0 = Initial.xy;
+    float2 h0conju = Initial.zw;
+
+    float halfRes = _Resolution / 2.0f;
+    float2 k = (id.xy - halfRes) * 2.0f * PI / _LengthScale;
+    float kLength = length(k);
+    float kLengthRcp = rcp(kLength);
+
+    if (kLength < 0.0001f)
+    {
+        kLengthRcp = 1.0f;
+    }
+
+    float w0 = 2.0f * PI / _RepeatTime;
+    float dispersion = floor(sqrt(_Gravity * kLength) / w0) * w0 * _FrameTime;
+
+    float2 exponent = EulerFormula(dispersion);
+
+    float2 htime = ComplexMul(h0, exponent) + ComplexMul(h0conju, float2(exponent.x, -exponent.y));
+    float2 ihtime = float2(-htime.y, htime.x);
+
+    float2 displacementX = ihtime * k.x * kLengthRcp;
+    float2 displacementY = htime;
+    float2 displacementZ = ihtime * k.y * kLengthRcp;
+
+    float2 displacementX_dx = -htime * k.x * k.x * kLengthRcp;
+    float2 displacementY_dx = ihtime * k.x;
+    float2 displacementZ_dx = -htime * k.x * k.y * kLengthRcp;
+
+    float2 displacementY_dz = k.y * ihtime;
+    float2 displacementZ_dz = -htime * k.y * k.y * kLengthRcp;
+
+    float2 htimeDisplacementX = float2(displacementX.x - displacementZ.y, displacementX.y + displacementZ.x);
+    float2 htimeDisplacementZ = float2(displacementY.x - displacementZ_dx.y, displacementY.y + displacementZ_dx.x);
+            
+    float2 htimeSlopeX = float2(displacementY_dx.x - displacementY_dz.y, displacementY_dx.y + displacementY_dz.x);
+    float2 htimeSlopeZ = float2(displacementX_dx.x - displacementZ_dz.y, displacementX_dx.y + displacementZ_dz.x);
+    
+    UpdateTexture[uint3(id.xy, 0)] = float4(htimeDisplacementX, htimeDisplacementZ);
+    UpdateTexture[uint3(id.xy, 1)] = float4(htimeSlopeX, htimeSlopeZ);
+}
+#define SIZE 1024
+#define LOG_SIZE 10
+groupshared float4 fftGroupBuffer[2][SIZE];
+//蝶形运算 为FFT进行准备
+void ButterFlyValues(uint step, uint index, out uint2 index2, out float2 twiddle)
+{
+    const float twoPi = 6.28318530718;
+    uint b = SIZE >> (step + 1); // = SIZE / 2 ^ (step + 1)
+    uint w = b * (index / b); //进行一次分组
+    uint i = (w + index) % SIZE; //第二次分组
+    sincos(-twoPi / SIZE * w, twiddle.y, twiddle.x);
+
+    //这里将FFT变成IFFT
+    twiddle.y = -twiddle.y;
+    index2 = uint2(i, i + b);
+}
+//FFT的主要流程
+float4 IFFT(uint threadIndex, float4 input)
+{
+    fftGroupBuffer[0][threadIndex] = input;
+    GroupMemoryBarrierWithGroupSync();
+    bool flag = false;
+
+    [unroll]
+    for (uint step = 0; step < LOG_SIZE; ++step)
+    {
+        uint2 outputIndices;
+        float2 twiddle;
+        ButterFlyValues(step, threadIndex, outputIndices, twiddle);
+
+        float4 v = fftGroupBuffer[flag][outputIndices.y];
+        fftGroupBuffer[!flag][threadIndex] = fftGroupBuffer[flag][outputIndices.x] + float4(ComplexMul(twiddle, v.xy), ComplexMul(twiddle, v.zw));
+
+        flag = !flag;
+        GroupMemoryBarrierWithGroupSync();
+    }
+
+    return fftGroupBuffer[flag][threadIndex];
+}
+
+[numthreads(SIZE, 1, 1)]
+void CS_HorizontalIFFT(uint3 id : SV_DISPATCHTHREADID)
+{
+    for (int i = 0; i < 2; ++i)
+    {
+        FourierTexture[uint3(id.xy, i)] = IFFT(id.x, FourierTexture[uint3(id.xy, i)]);
+    }
+}
+[numthreads(SIZE, 1, 1)]
+void CS_VerticalIFFT(uint3 id : SV_DISPATCHTHREADID)
+{
+    for (int i = 0; i < 2; ++i)
+    {
+        FourierTexture[uint3(id.yx, i)] = IFFT(id.x, FourierTexture[uint3(id.yx, i)]);
+    }
+}
+//IFFT输出的数据往往是乱序的，需要通过Permute函数重新排列
+float4 Permute(float4 data, float3 id)
+{
+    return data * (1.0f - 2.0f * ((id.x + id.y) % 2));
+}
+
+[numthreads(8, 8, 1)]
+void CS_AssembleTextures(uint3 id : SV_DISPATCHTHREADID)
+{
+    float4 htimeDisplacement = Permute(FourierTexture[uint3(id.xy, 0)], id);
+    float4 htimeSlope = Permute(FourierTexture[uint3(id.xy, 1)], id);
+
+    float2 DxDy = htimeDisplacement.rg;
+    float2 DyDxz = htimeDisplacement.ba;
+    float2 DyxDyz = htimeSlope.rg;
+    float2 DxxDzz = htimeSlope.ba;
+
+    float jacobian = (1.0f + _WaveSharp.x * DxxDzz.x) * (1.0f + _WaveSharp.y * DxxDzz.y) - _WaveSharp.x * _WaveSharp.y * DyDxz.y * DyDxz.y;
+    jacobian = pow(saturate(jacobian), _FoamPower);
+
+    float3 finalDisplace = float3(DxDy.x * _WaveSharp.x, DyDxz.x, DxDy.y * _WaveSharp.y);
+    float2 finalSlope = DyxDyz.xy / (1 + abs(DxxDzz * _WaveSharp));
+
+    float foam = _DisplacementTexture[uint3(id.xy, 0)].a;
+    foam *= exp(-_FoamDecayRate);
+    foam = saturate(foam);
+
+    float biasedJacobian = max(0.0f, -(jacobian - _FoamBias));
+
+    if (biasedJacobian > 0)
+        foam += _FoamAdd * biasedJacobian;
+    foam = saturate(foam);
+    _DisplacementTexture[uint3(id.xy, 0)] = float4(finalDisplace, foam);
+    _SlopeTexture[uint3(id.xy, 0)] = float4(finalSlope, 0.0, 1.0);
+}
