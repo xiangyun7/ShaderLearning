@@ -1,0 +1,105 @@
+﻿#pragma kernel GenerateCloudNoise
+
+RWTexture3D<float4> _CloudTex;
+int _TextureSize;
+
+//function mode
+
+float3 Hash3D(float3 p)
+{
+    p = float3(
+        dot(p, float3(127.1, 311.7, 74.7)),
+        dot(p, float3(269.5, 183.3, 246.1)),
+        dot(p, float3(113.5, 271.9, 124.6))
+    );
+
+    return frac(sin(p) * 43758.5453123);
+}
+
+float Fade(float t)
+{
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+float3 RandomGradient(int3 pos, int frequency)
+{
+    pos = (pos + int3(frequency, frequency, frequency)) % frequency;
+
+    float3 gradient = Hash3D(pos) * 2.0 - 1.0;
+    return normalize(gradient);
+}
+
+float NoisePerlin(float3 pos, int frequency)
+{
+    pos *= frequency;
+
+    int3 i = floor(pos);
+    float3 f = frac(pos);
+
+    float3 g000 = RandomGradient(i + int3(0, 0, 0), frequency);
+    float3 g100 = RandomGradient(i + int3(1, 0, 0), frequency);
+    float3 g010 = RandomGradient(i + int3(0, 1, 0), frequency);
+    float3 g110 = RandomGradient(i + int3(1, 1, 0), frequency);
+    float3 g001 = RandomGradient(i + int3(0, 0, 1), frequency);
+    float3 g101 = RandomGradient(i + int3(1, 0, 1), frequency);
+    float3 g011 = RandomGradient(i + int3(0, 1, 1), frequency);
+    float3 g111 = RandomGradient(i + int3(1, 1, 1), frequency);
+
+    float v000 = dot(g000, f - float3(0, 0, 0));
+    float v100 = dot(g100, f - float3(1, 0, 0));
+    float v010 = dot(g010, f - float3(0, 1, 0));
+    float v110 = dot(g110, f - float3(1, 1, 0));
+    float v001 = dot(g001, f - float3(0, 0, 1));
+    float v101 = dot(g101, f - float3(1, 0, 1));
+    float v011 = dot(g011, f - float3(0, 1, 1));
+    float v111 = dot(g111, f - float3(1, 1, 1));
+
+    float3 u = float3(Fade(f.x), Fade(f.y), Fade(f.z));
+
+    float x00 = lerp(v000, v100, u.x);
+    float x10 = lerp(v010, v110, u.x);
+    float x01 = lerp(v001, v101, u.x);
+    float x11 = lerp(v011, v111, u.x);
+
+    float y0 = lerp(x00, x10, u.y);
+    float y1 = lerp(x01, x11, u.y);
+
+    return lerp(y0, y1, u.z) * 0.5 + 0.5;
+}
+
+float PerlinFBM(float3 pos)
+{
+    float value = 0.0;
+    float amplitude = 0.5;
+    int frequency = 4;
+
+    [unroll]
+    for (int i = 0; i < 5; i++)
+    {
+        value += NoisePerlin(pos, frequency) * amplitude;
+        amplitude *= 0.5;
+        frequency *= 2;
+    }
+
+    return pow(saturate(value), 1.8);
+}
+
+
+
+
+
+
+//kernel mode
+
+[numthreads(8, 8, 8)]
+void GenerateCloudNoise(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _TextureSize || id.y >= _TextureSize || id.z >= _TextureSize)
+        return;
+
+    float3 uvw = (id + 0.5) / (float) _TextureSize;
+
+    float perlin = PerlinFBM(uvw);
+
+    _CloudTex[id] = float4(perlin, 0.0, 0.0, 1.0);
+}

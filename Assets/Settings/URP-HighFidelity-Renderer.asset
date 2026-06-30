@@ -17,6 +17,32 @@ MonoBehaviour:
     passEvent: 550
     bloomMaterial: {fileID: 2100000, guid: fc00aa7d71116ff479a7de4b751d3662, type: 2}
     bloomIntensity: 1
+--- !u!114 &-3623176508052083610
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac8bb2a8c58df1d41835b28c023c3d81, type: 3}
+  m_Name: CloudRenderFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  settings:
+    cloudMaterial: {fileID: 2100000, guid: 49bddef4ecacb3c499136833bd2c4147, type: 2}
+    cloudBoundsPos: {x: 0, y: 150, z: 0}
+    cloudBoundsSize: {x: 10000, y: 100, z: 10000}
+    cloudBoundsMin: {x: -5000, y: 100, z: -5000}
+    cloudBoundsMax: {x: 5000, y: 200, z: 5000}
+    rayStep: 10
+    densityMultiplier: 0.004
+    cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
+    cloudScale: {x: 1, y: 1, z: 1}
+    noiseTileSize: 1000
+    densityThreshold: 0.2
+    densityContrast: 4
 --- !u!114 &-1878332245247344467
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -70,7 +96,8 @@ MonoBehaviour:
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
   - {fileID: -1878332245247344467}
-  m_RendererFeatureMap: adc0de57c6d2eee5
+  - {fileID: -3623176508052083610}
+  m_RendererFeatureMap: adc0de57c6d2eee566ec038f29e4b7cd
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
