@@ -67,6 +67,7 @@ public static class CloudNoiseBaker
                 }
 
                 NormalizeRedChannel(data);
+                NormalizeGreenChannel(data);
 
                 Texture3D texture = new Texture3D(rt.width, rt.height, rt.volumeDepth, TextureFormat.RGBA32, false)
                 {
@@ -120,6 +121,36 @@ public static class CloudNoiseBaker
         }
 
         Debug.Log($"Normalize red channel: {minR / 255.0f:F3} - {maxR / 255.0f:F3} -> 0.000 - 1.000");
+    }
+
+    private static void NormalizeGreenChannel(NativeArray<Color32> data)
+    {
+        byte minG = byte.MaxValue;
+        byte maxG = byte.MinValue;
+
+        for (int i = 0; i < data.Length; i++)
+        {
+            byte g = data[i].g;
+            if (g < minG) minG = g;
+            if (g > maxG) maxG = g;
+        }
+
+        if (maxG <= minG)
+        {
+            Debug.LogWarning($"Cannot normalize green channel. minG={minG}, maxG={maxG}");
+            return;
+        }
+
+        float range = maxG - minG;
+
+        for (int i = 0; i < data.Length; i++)
+        {
+            Color32 color = data[i];
+            byte normalizedG = (byte)Mathf.RoundToInt((color.g - minG) / range * 255.0f);
+            data[i] = new Color32(color.r, normalizedG, color.b, color.a);
+        }
+
+        Debug.Log($"Normalize green channel: {minG / 255.0f:F3} - {maxG / 255.0f:F3} -> 0.000 - 1.000");
     }
 
     private static void SaveTextureAsset(Texture3D texture, string savePath)

@@ -84,9 +84,50 @@ float PerlinFBM(float3 pos)
     return pow(saturate(value), 1.8);
 }
 
+float WorleyNoise(float3 pos, int cellCount)
+{
+    float3 p = pos * cellCount;
+    int3 baseCell = floor(p);
 
+    float minDist = 1000.0;
 
+    [unroll]
+    for (int x = -1; x <= 1; x++)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; y++)
+        {
+            [unroll]
+            for (int z = -1; z <= 1; z++)
+            {
+                int3 cell = baseCell + int3(x, y, z);
+                int3 wrappedCell = (cell + int3(cellCount, cellCount, cellCount)) % cellCount;
 
+                float3 featurePoint = (float3) cell + Hash3D(wrappedCell);
+                float3 offset = p - featurePoint;
+
+                minDist = min(minDist, dot(offset, offset));
+            }
+        }
+    }
+
+    float dist = sqrt(minDist);
+    return saturate(1.0 - dist);
+}
+
+float WorleyFBM(float3 pos)
+{
+    float blend = 0.5;
+
+    float worleyA = WorleyNoise(pos, 4);
+    float worleyB = WorleyNoise(pos, 8);
+    float worleyC = WorleyNoise(pos, 16);
+
+    float value = worleyA + worleyB * blend + worleyC * blend * blend;
+    float maxValue = 1.0 + blend + blend * blend;
+
+    return value / maxValue;
+}
 
 
 //kernel mode
@@ -100,6 +141,7 @@ void GenerateCloudNoise(uint3 id : SV_DispatchThreadID)
     float3 uvw = (id + 0.5) / (float) _TextureSize;
 
     float perlin = PerlinFBM(uvw);
+    float worley = WorleyFBM(uvw);
 
-    _CloudTex[id] = float4(perlin, 0.0, 0.0, 1.0);
+    _CloudTex[id] = float4(perlin, worley, 0.0, 1.0);
 }

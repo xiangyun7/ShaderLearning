@@ -1,7 +1,8 @@
-Shader "Tutorial/VolumeCloud"
+ï»¿Shader "Tutorial/VolumeCloud"
 {
     Properties
     {
+
     }
     SubShader
     {
@@ -17,32 +18,45 @@ Shader "Tutorial/VolumeCloud"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-            //²ÎÊıÉùÃ÷
-            //°üÎ§ºĞ²ÎÊı
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            
+            //å‚æ•°å£°æ˜
+            //åŒ…å›´ç›’å‚æ•°
             float3 _CloudBoundsMin,_CloudBoundsMax;
-            //raymarching²ÎÊı
+            //raymarchingå‚æ•°
             float _RayStep,_DensityMultiplier;
-            //ÔëÉùÃÜ¶È²ÉÑù²ÎÊı
+            //å™ªå£°å¯†åº¦é‡‡æ ·å‚æ•°
             TEXTURE3D(_CloudNoiseMap); SAMPLER(sampler_CloudNoiseMap);
             float3 _CloudScale;
             float _NoiseTileSize;
             float _DensityThreshold, _DensityContrast;
+            float _DetailStrength;
+            //è¾¹ç¼˜é€’å‡è·ç¦»
+            float _EdgeFadeDistance;
+            //å…‰ç…§æ¨¡å‹å‚æ•°
+            float _LightAbsorptionThroughCloud;
+            float3 _LightThroughCloudColor;
+            float _LightAbsorptionTowardSun;
+            float _DarknessThreshold;
+            float4 _PhaseParams;
+            float _PhaseBlend;
+            static const float CLOUD_PI = 3.14159265359;
 
-            //¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ªfunction mode¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª
-            //Éî¶ÈÍ¼ÖØ½¨ÊÀ½ç×ø±ê
+            //â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”function modeâ€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
+            //æ·±åº¦å›¾é‡å»ºä¸–ç•Œåæ ‡
             float3 ReconstructWorldPosition(float2 uv)
             {
                 float rawDepth = SampleSceneDepth(uv);
 
-            #if UNITY_REVERSED_Z
-                float deviceDepth = rawDepth;
-            #else
-                float deviceDepth = lerp(UNITY_NEAR_CLIP_VALUE, 1.0, rawDepth);
-            #endif
+                #if UNITY_REVERSED_Z
+                    float deviceDepth = rawDepth;
+                #else
+                    float deviceDepth = lerp(UNITY_NEAR_CLIP_VALUE, 1.0, rawDepth);
+                #endif
 
                 return ComputeWorldSpacePosition(uv, deviceDepth, UNITY_MATRIX_I_VP);
             }
-            //°üÎ§ºĞÇó½»º¯Êı
+            //åŒ…å›´ç›’æ±‚äº¤å‡½æ•°
             float2 RayBoxIntersection(float3 rayOrigin, float3 rayDir)
             {
                 float3 t0 = (_CloudBoundsMin - rayOrigin) / rayDir;
@@ -60,7 +74,7 @@ Shader "Tutorial/VolumeCloud"
                 tEnter = max(tEnter, 0.0);
                 return float2(tEnter, tExit - tEnter);
             }
-            //ÃÜ¶È²ÉÑùº¯Êı
+            //å¯†åº¦é‡‡æ ·å‡½æ•°
             float SampleDensity(float3 rayPos)
             {
                 float3 boundsSize = _CloudBoundsMax - _CloudBoundsMin;
@@ -72,19 +86,77 @@ Shader "Tutorial/VolumeCloud"
                 float heightFade =
                     smoothstep(0.0, 0.15, uvw.y) *
                     (1.0 - smoothstep(0.75, 1.0, uvw.y));
+                float edgeFadeDistance = max(_EdgeFadeDistance, 0.001);
+                float distToEdgeX = min(rayPos.x - _CloudBoundsMin.x, _CloudBoundsMax.x - rayPos.x);
+                float distToEdgeZ = min(rayPos.z - _CloudBoundsMin.z, _CloudBoundsMax.z - rayPos.z);
+                float edgeFade = saturate(min(distToEdgeX, distToEdgeZ) / edgeFadeDistance);
+                edgeFade = smoothstep(0.0, 1.0, edgeFade);
+
+
 
                 float3 noiseUVW = (rayPos - _CloudBoundsMin) / _NoiseTileSize;
-                float noise = SAMPLE_TEXTURE3D(_CloudNoiseMap, sampler_CloudNoiseMap, noiseUVW * _CloudScale).r;
-                float density = max(0.0, noise - _DensityThreshold) * _DensityContrast;
+                float4 noiseData = SAMPLE_TEXTURE3D(_CloudNoiseMap, sampler_CloudNoiseMap, noiseUVW * _CloudScale);
+                float baseShape = noiseData.r;//æŸæ—å™ªå£°æ ‡è®°äº‘çš„ä¸»ä½“
+                float detailNoise = noiseData.g;//ç»†èƒå™ªå£°ä¾µèš€äº‘çš„è¾¹ç¼˜å¢åŠ ç»†èŠ‚
 
-                return density * heightFade * _DensityMultiplier;
+                float density = max(0.0, baseShape - _DensityThreshold) * _DensityContrast;
+                float detailMask = 1.0 - saturate(density);
+                detailMask = detailMask * detailMask * detailMask;
+
+                density = max(0.0, density - detailNoise * _DetailStrength * detailMask);
+
+                return density * heightFade * edgeFade * _DensityMultiplier;
+                //return density * _DensityMultiplier;
+            }
+            //ç›¸å‡½æ•°è®¡ç®—
+            float HGFunction(float cosTheta, float g)
+            {
+                float g2 = g * g;
+                float denominator = pow(max(1.0 + g2 - 2.0 * g * cosTheta, 0.0001), 1.5);
+                return (1.0 - g2) / (4.0 * CLOUD_PI * denominator);
+            }
+            float GetPhase(float cosTheta)
+            {
+                float forwardPhase = HGFunction(cosTheta, _PhaseParams.x);
+                float backwardPhase = HGFunction(cosTheta, _PhaseParams.y);
+                float phase = lerp(backwardPhase, forwardPhase, _PhaseBlend);
+
+                return _PhaseParams.z + phase * _PhaseParams.w;
+            }
+            //å…‰æºæ–¹å‘raymarchingå‡½æ•°
+            float MarchToLight(float3 currPos)
+            {
+                Light mainLight = GetMainLight();
+                float3 lightDir = normalize(mainLight.direction);
+
+                float lightRayLength = RayBoxIntersection(currPos, lightDir).y;
+                if (lightRayLength <= 0.0)
+                    return 1.0;
+
+                float lightStep = lightRayLength / 8.0;
+                float totalDensity = 0.0;
+
+                [loop]
+                for (int i = 0; i < 8; i++)
+                {
+                    float3 samplePos = currPos + lightDir * (lightStep * (i + 0.5));
+                    totalDensity += SampleDensity(samplePos) * lightStep;
+                }
+
+                float lightTransmittance = exp(-totalDensity * _LightAbsorptionTowardSun);
+                return _DarknessThreshold + lightTransmittance * (1.0 - _DarknessThreshold);
             }
 
-
-            //ray marching²½½øº¯Êı
-            float RayMarching(float3 rayStart, float3 rayDir, float rayLength)
+            //ç›¸æœºæ–¹å‘raymarchingå‡½æ•°
+            void RayMarching(float3 rayStart, float3 rayDir, float rayLength, out float3 scattering, out float transmittance)
             {
-                float transmittance = 1.0;
+                Light mainLight = GetMainLight();
+
+                float cosTheta = dot(rayDir, normalize(mainLight.direction));
+                float phase = GetPhase(cosTheta);
+
+                scattering = 0.0;
+                transmittance = 1.0;
 
                 [loop]
                 for (float rayDis = 0.0; rayDis < rayLength; rayDis += _RayStep)
@@ -93,16 +165,24 @@ Shader "Tutorial/VolumeCloud"
                     float3 currPos = rayStart + rayDir * (rayDis + stepSize * 0.5);
 
                     float density = SampleDensity(currPos);
-                    transmittance *= exp(-density * stepSize);
+                    if (density <= 0.0)
+                        continue;
+
+                    float stepTransmittance = exp(-density * stepSize * _LightAbsorptionThroughCloud);
+                    float stepAlpha = 1.0 - stepTransmittance;
+
+                    float lightTransmittance = MarchToLight(currPos);//å…‰æºæ–¹å‘é€å°„ç‡
+                    float3 stepLight = mainLight.color * _LightThroughCloudColor * phase * lightTransmittance;
+                    scattering += transmittance * stepAlpha * stepLight;
+
+                    transmittance *= stepTransmittance;
 
                     if (transmittance < 0.01)
                         break;
                 }
-
-                return 1.0 - transmittance;
             }
 
-            //¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ªShader mode¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª
+            //â€”â€”â€”â€”â€”â€”â€”â€”Shader modeâ€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
             float4 frag(Varyings input) : SV_TARGET
             {
@@ -127,10 +207,11 @@ Shader "Tutorial/VolumeCloud"
                     return float4(sourceColor, 1.0);
 
                 float3 rayStart = rayOrigin + rayDir * hitInfo.x;
-                float cloudAlpha = RayMarching(rayStart, rayDir, rayLength);
+                float3 scattering;
+                float transmittance;
+                RayMarching(rayStart, rayDir, rayLength, scattering, transmittance);
 
-                float3 cloudColor = float3(1, 1, 1);
-                float3 finalColor = lerp(sourceColor, cloudColor, cloudAlpha);
+                float3 finalColor = sourceColor * transmittance + scattering;
 
                 return float4(finalColor, 1.0);
 
