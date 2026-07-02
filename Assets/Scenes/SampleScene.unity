@@ -198,11 +198,11 @@ MonoBehaviour:
   FoamAdd: 0.1
   FoamDecayRate: 0.05
   displaySpectrum:
-    scale: 0.3
-    windSpeed: 50
+    scale: 0.2
+    windSpeed: 35
     windDirection: 0
     fetch: 1000
-    peakEnhancement: 1
+    peakEnhancement: 3.3
   waterMaterial: {fileID: 2100000, guid: 2787997e150f3f14d821521ae9a4d053, type: 2}
   _ScatterColor: {r: 0, g: 0.51670027, b: 1, a: 1}
   _ScatterPeakColor: {r: 0.19182372, g: 0.7424494, b: 1, a: 1}
@@ -621,13 +621,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.12811881, y: -0.45884722, z: -0.06705721, w: 0.87666875}
+  m_LocalRotation: {x: -0.1369784, y: -0.56062454, z: -0.09467161, w: 0.81115615}
   m_LocalPosition: {x: 1.5, y: 3.57, z: -16.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: -16.629, y: -55.255, z: 0}
+  m_LocalEulerAnglesHint: {x: -19.17, y: -69.3, z: 0}
 --- !u!114 &330585547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -688,44 +688,6 @@ MonoBehaviour:
   fastMultiplier: 3
   mouseSensitivity: 1
   rotateOnlyWhileRightMouseHeld: 1
---- !u!84 &367943670
-RenderTexture:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: _LightCameraDepthTexture
-  m_ImageContentsHash:
-    serializedVersion: 2
-    Hash: 00000000000000000000000000000000
-  m_ForcedFallbackFormat: 4
-  m_DownscaleFallback: 0
-  m_IsAlphaChannelOptional: 0
-  serializedVersion: 5
-  m_Width: 4096
-  m_Height: 4096
-  m_AntiAliasing: 1
-  m_MipCount: -1
-  m_DepthStencilFormat: 94
-  m_ColorFormat: 0
-  m_MipMap: 0
-  m_GenerateMips: 1
-  m_SRGB: 0
-  m_UseDynamicScale: 0
-  m_BindMS: 0
-  m_EnableCompatibleFormat: 1
-  m_EnableRandomWrite: 0
-  m_TextureSettings:
-    serializedVersion: 2
-    m_FilterMode: 0
-    m_Aniso: 1
-    m_MipBias: 0
-    m_WrapU: 1
-    m_WrapV: 1
-    m_WrapW: 1
-  m_Dimension: 2
-  m_VolumeDepth: 1
-  m_ShadowSamplingMode: 2
 --- !u!1 &410087039
 GameObject:
   m_ObjectHideFlags: 0
@@ -1429,7 +1391,7 @@ Camera:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RenderingPath: -1
-  m_TargetTexture: {fileID: 367943670}
+  m_TargetTexture: {fileID: 1825683172}
   m_TargetDisplay: 1
   m_TargetEye: 3
   m_HDR: 1
@@ -1483,6 +1445,44 @@ MonoBehaviour:
   lightCamera: {fileID: 1714047555}
   shadowSize: 4096
   lightDepthShader: {fileID: 0}
+--- !u!84 &1825683172
+RenderTexture:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: _LightCameraDepthTexture
+  m_ImageContentsHash:
+    serializedVersion: 2
+    Hash: 00000000000000000000000000000000
+  m_ForcedFallbackFormat: 4
+  m_DownscaleFallback: 0
+  m_IsAlphaChannelOptional: 0
+  serializedVersion: 5
+  m_Width: 4096
+  m_Height: 4096
+  m_AntiAliasing: 1
+  m_MipCount: -1
+  m_DepthStencilFormat: 94
+  m_ColorFormat: 0
+  m_MipMap: 0
+  m_GenerateMips: 1
+  m_SRGB: 0
+  m_UseDynamicScale: 0
+  m_BindMS: 0
+  m_EnableCompatibleFormat: 1
+  m_EnableRandomWrite: 0
+  m_TextureSettings:
+    serializedVersion: 2
+    m_FilterMode: 0
+    m_Aniso: 1
+    m_MipBias: 0
+    m_WrapU: 1
+    m_WrapV: 1
+    m_WrapW: 1
+  m_Dimension: 2
+  m_VolumeDepth: 1
+  m_ShadowSamplingMode: 2
 --- !u!1 &1839029748
 GameObject:
   m_ObjectHideFlags: 0
