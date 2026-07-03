@@ -41,6 +41,8 @@ public class CloudRenderPass : ScriptableRenderPass
     private static readonly int FilterSigmaId = Shader.PropertyToID("_FilterSigma");
     private static readonly int FilterRangeSigmaId = Shader.PropertyToID("_FilterRangeSigma");
     private static readonly int FilterStrengthId = Shader.PropertyToID("_FilterStrength");
+    private static readonly int CloudWindDirectionId = Shader.PropertyToID("_CloudWindDirection");
+    private static readonly int CloudWindSpeedId = Shader.PropertyToID("_CloudWindSpeed");
 
 
     //—————————生命周期函数——————————————————
@@ -159,6 +161,12 @@ public class CloudRenderPass : ScriptableRenderPass
         settings.cloudMaterial.SetFloat(DensityContrastId, settings.densityContrast);
         settings.cloudMaterial.SetFloat(DetailStrengthId, settings.detailStrength);
         settings.cloudMaterial.SetFloat(EdgeFadeDistanceId, Mathf.Max(0.001f, settings.edgeFadeDistance));
+
+        Vector3 windDirection = settings.cloudWindDirection.sqrMagnitude > 0.0001f
+            ? settings.cloudWindDirection.normalized: Vector3.zero;//归一化风向
+        settings.cloudMaterial.SetVector(CloudWindDirectionId, windDirection);
+        settings.cloudMaterial.SetFloat(CloudWindSpeedId, settings.cloudWindSpeed);
+
 
         settings.cloudBoundsMin = settings.cloudBoundsPos - settings.cloudBoundsSize * 0.5f;
         settings.cloudBoundsMax = settings.cloudBoundsPos + settings.cloudBoundsSize * 0.5f;

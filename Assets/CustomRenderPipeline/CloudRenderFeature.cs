@@ -73,7 +73,10 @@ public class VolumeCloudParams
     public float filterRangeSigma = 0.15f;
     [Range(0.0f, 1.0f)]
     public float filterStrength = 0.5f;
-
+    [Header("动态云")]
+    public Vector3 cloudWindDirection = new Vector3(1.0f, 0.0f, 0.0f);
+    [Range(0.0f, 500.0f)]
+    public float cloudWindSpeed = 30.0f;
 }
 public class CloudRenderFeature : ScriptableRendererFeature
 {

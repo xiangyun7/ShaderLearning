@@ -44,6 +44,10 @@
             float4 _PhaseParams;//相函数参数
             float _PhaseBlend;
             static const float CLOUD_PI = 3.14159265359;
+            //动态云参数
+            float3 _CloudWindDirection;
+            float _CloudWindSpeed;
+
 
             //——————————function mode—————————————————————
             //蓝噪声采样偏移函数
@@ -93,18 +97,31 @@
                 if (any(uvw < 0.0) || any(uvw > 1.0))
                     return 0.0;
 
-                float heightFade =
-                    smoothstep(0.0, 0.15, uvw.y) *
-                    (1.0 - smoothstep(0.75, 1.0, uvw.y));
+                float3 heightNoiseUVW = float3((rayPos.xz - _CloudBoundsMin.xz) / _NoiseTileSize,0.37);
+
+                float heightNoise = SAMPLE_TEXTURE3D(
+                    _CloudNoiseMap,
+                    sampler_CloudNoiseMap,
+                    heightNoiseUVW * _CloudScale
+                ).r;
+
+                float cloudBottom = lerp(0.0, 0.25, heightNoise);
+                float bottomFade = smoothstep(cloudBottom, cloudBottom + 0.15, uvw.y);
+
+                float topFade = 1.0 - smoothstep(0.75, 1.0, uvw.y);
+
+                float heightFade = bottomFade * topFade;
+
                 float edgeFadeDistance = max(_EdgeFadeDistance, 0.001);
                 float distToEdgeX = min(rayPos.x - _CloudBoundsMin.x, _CloudBoundsMax.x - rayPos.x);
                 float distToEdgeZ = min(rayPos.z - _CloudBoundsMin.z, _CloudBoundsMax.z - rayPos.z);
                 float edgeFade = saturate(min(distToEdgeX, distToEdgeZ) / edgeFadeDistance);
                 edgeFade = smoothstep(0.0, 1.0, edgeFade);
 
+                float3 windOffset = _CloudWindDirection * _CloudWindSpeed * _Time.y;
+                float3 movedRayPos = rayPos - windOffset;
 
-
-                float3 noiseUVW = (rayPos - _CloudBoundsMin) / _NoiseTileSize;
+                float3 noiseUVW = (movedRayPos - _CloudBoundsMin) / _NoiseTileSize;
                 float4 noiseData = SAMPLE_TEXTURE3D(_CloudNoiseMap, sampler_CloudNoiseMap, noiseUVW * _CloudScale);
                 float baseShape = noiseData.r;//柏林噪声标记云的主体
                 float detailNoise = noiseData.g;//细胞噪声侵蚀云的边缘增加细节
@@ -116,7 +133,6 @@
                 density = max(0.0, density - detailNoise * _DetailStrength * detailMask);
 
                 return density * heightFade * edgeFade * _DensityMultiplier;
-                //return density * _DensityMultiplier;
             }
             //相函数计算
             float HGFunction(float cosTheta, float g)
