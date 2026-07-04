@@ -29,7 +29,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ac8bb2a8c58df1d41835b28c023c3d81, type: 3}
   m_Name: CloudRenderFeature
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   settings:
     cloudMaterial: {fileID: 2100000, guid: 49bddef4ecacb3c499136833bd2c4147, type: 2}
     lightAbsorptionThroughCloud: 1
