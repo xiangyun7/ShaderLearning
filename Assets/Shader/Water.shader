@@ -323,7 +323,7 @@ Shader "Tutorial/Water"
                 foam *= distanceFade;
                 float3 foamColor = _FoamColor.rgb * mainLight.color.rgb;
                 //粗糙度
-                float roughness = _Roughness + foam * _FoamRoughness;
+                float roughness = max(0.02, _Roughness + foam * _FoamRoughness);
                 float viewMask = SmithMaskBeckmann(halfDir, viewDirWS, roughness);
 				float lightMask = SmithMaskBeckmann(halfDir, lightDirWS, roughness);
                 float geometryMask = rcp(1 + viewMask + lightMask);
@@ -426,13 +426,12 @@ Shader "Tutorial/Water"
                 {
                     return half4(Fresnel, 1);
                 }
-                // 1. 只看高光
+                // 11. 只看高光
                 if (_DebugMode == 11)
                 {
                     return half4(specular, 1);
                 }
                 return half4(finalColor, 1);
-                //return half4(k2 , k2 , k2 , 1);
             }
             ENDHLSL
         }

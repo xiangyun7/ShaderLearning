@@ -29,7 +29,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ac8bb2a8c58df1d41835b28c023c3d81, type: 3}
   m_Name: CloudRenderFeature
   m_EditorClassIdentifier: 
-  m_Active: 0
+  m_Active: 1
   settings:
     cloudMaterial: {fileID: 2100000, guid: 49bddef4ecacb3c499136833bd2c4147, type: 2}
     lightAbsorptionThroughCloud: 1
@@ -41,10 +41,10 @@ MonoBehaviour:
     lightThroughCloudColor: {r: 1, g: 1, b: 1, a: 1}
     phaseParams: {x: 0.6, y: -0.2, z: 0.35, w: 2.5}
     phaseBlend: 0.6
-    cloudBoundsPos: {x: 0, y: 200, z: 0}
+    cloudBoundsPos: {x: 0, y: 140, z: 0}
     cloudBoundsSize: {x: 10000, y: 100, z: 10000}
-    cloudBoundsMin: {x: -5000, y: 150, z: -5000}
-    cloudBoundsMax: {x: 5000, y: 250, z: 5000}
+    cloudBoundsMin: {x: -5000, y: 90, z: -5000}
+    cloudBoundsMax: {x: 5000, y: 190, z: 5000}
     volumeCloudDownsample: 4
     blueNoiseMap: {fileID: 2800000, guid: 36f118343fc974119bee3d09e2111500, type: 3}
     rayStep: 10
@@ -52,9 +52,9 @@ MonoBehaviour:
     cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
     cloudScale: {x: 1, y: 1, z: 1}
     noiseTileSize: 500
-    densityThreshold: 0.4
+    densityThreshold: 0.2
     densityContrast: 8
-    detailStrength: 0.5
+    detailStrength: 10
     edgeFadeDistance: 500
     cloudFilterMaterial: {fileID: 2100000, guid: 5cdc6d2f1f5842245ad5ca34ad94091c,
       type: 2}
@@ -62,8 +62,8 @@ MonoBehaviour:
     filterSigma: 0.5
     filterRangeSigma: 0.1
     filterStrength: 0.2
-    cloudWindDirection: {x: -1, y: 0, z: 0}
-    cloudWindSpeed: 5
+    cloudWindDirection: {x: 0, y: 0, z: 1}
+    cloudWindSpeed: 2
 --- !u!114 &-1878332245247344467
 MonoBehaviour:
   m_ObjectHideFlags: 0
