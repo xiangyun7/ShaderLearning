@@ -27,7 +27,7 @@ Material:
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
+  m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
@@ -81,7 +81,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MossMaskMap:
-        m_Texture: {fileID: 2800000, guid: ce67ba210f3824b40987b840c729d6c2, type: 3}
+        m_Texture: {fileID: 2800000, guid: 081e9629f70e85b40adac5c19ef88733, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
@@ -111,19 +111,24 @@ Material:
     m_Ints: []
     m_Floats:
     - _AOInfluence: 0.5
+    - _ActiveShellCount: 1
     - _AlphaClip: 0
     - _AlphaCutoff: 0.05
     - _AlphaToMask: 0
+    - _AmbientStrength: 0.7
     - _BaseTextureStrength: 1
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _ColorSaturation: 0.9
+    - _ColorTintStrength: 0.4
     - _Cull: 2
     - _Cutoff: 0.5
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
+    - _DirectStrength: 0.8
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
@@ -148,13 +153,25 @@ Material:
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
-    - _TipCutoff: 0.903
+    - _TipCutoff: 0.9
+    - _TipLighten: 0.15
+    - _UseInstancedShellT: 1
+    - _WindPhaseScale: 0.2
+    - _WindPhaseStrength: 1
+    - _WindShellPower: 1
+    - _WindSideSpeed: 1.37
+    - _WindSideStrength: 0.25
+    - _WindSpeed: 1.5
+    - _WindStrength: 0.25
     - _WorkflowMode: 1
+    - _WrapLighting: 0.35
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.04, g: 0.15999997, b: 0.04, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
+    - _ColorTint: {r: 1, g: 0.6220383, b: 0, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _TipColor: {r: 0.45, g: 0.65, b: 0.17999998, a: 1}
+    - _WindDirection: {r: 1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

@@ -9,14 +9,14 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
     [SerializeField] private int mossLayerIndex = 2;
 
     [Header("Moss Overlay")]
-    [UnityEngine.Serialization.FormerlySerializedAs("debugOverlayMaterial")]
+    [UnityEngine.Serialization.FormerlySerializedAs("ShellMaterial")]
     [SerializeField] private Material mossShellMaterial;
     [SerializeField] private float chunkSize = 16f;
-    [UnityEngine.Serialization.FormerlySerializedAs("debugChunkX")]
+    [UnityEngine.Serialization.FormerlySerializedAs("centerChunkX")]
     [SerializeField] private int centerChunkX = 0;
-    [UnityEngine.Serialization.FormerlySerializedAs("debugChunkZ")]
+    [UnityEngine.Serialization.FormerlySerializedAs("centerChunkZ")]
     [SerializeField] private int centerChunkZ = 0;
-    [UnityEngine.Serialization.FormerlySerializedAs("debugChunkRadius")]
+    [UnityEngine.Serialization.FormerlySerializedAs("ChunkRadius")]
     [SerializeField] private int chunkRadius = 1;
     [SerializeField] private float chunkSkipThreshold = 0.02f;
 
@@ -27,19 +27,43 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
     [SerializeField, Range(0f, 1f)] private float mossFullWeight = 0.4f;
 
     [Header("Shell Rendering")]
-    [UnityEngine.Serialization.FormerlySerializedAs("debugShellCount")]
-    [SerializeField, Range(1, 32)] private int shellCount = 8;
+    [UnityEngine.Serialization.FormerlySerializedAs("ShellCount")]
+    [SerializeField, Range(1, 64)] private int shellCount = 8;
+
+    [Header("Optimization Demo")]
+    [SerializeField] private bool enableInstancing = false;
+    [SerializeField] private bool enableShellLOD = false;
+
+    [Header("Shell LOD")]
+    [SerializeField] private Camera lodCamera;
+    [SerializeField] private float lodNearDistance = 25f;
+    [SerializeField] private float lodMidDistance = 60f;
+    [SerializeField] private float lodFarDistance = 120f;
+    [SerializeField, Range(1, 32)] private int lodMidShellCount = 16;
+    [SerializeField, Range(1, 32)] private int lodFarShellCount = 8;
+
 
     private const string OverlayRootName = "Moss_OverlayChunks";
     private const string LegacyDebugRootName = "Moss_DebugPatch";
     private const string ChunkNamePrefix = "MossChunk_";
 
+    //可嵎歌方曝
     private static readonly int ShellTId = Shader.PropertyToID("_ShellT");
     private static readonly int MossBaseMapId = Shader.PropertyToID("_MossBaseMap");
     private static readonly int MossMaskMapId = Shader.PropertyToID("_MossMaskMap");
+    private static readonly int UseInstancedShellTId = Shader.PropertyToID("_UseInstancedShellT");
+    private static readonly int ActiveShellCountId = Shader.PropertyToID("_ActiveShellCount");
 
     private MaterialPropertyBlock shellPropertyBlock;
 
+    private readonly List<InstancedChunk> instancedChunks = new();
+    private Matrix4x4[] instancedShellMatrices;
+    private MaterialPropertyBlock instancedPropertyBlock;
+    private sealed class InstancedChunk
+    {
+        public Mesh mesh;
+        public Transform root;
+    }
     private struct TerrainMossSample
     {
         public Vector2 terrainUV;
@@ -49,10 +73,11 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         public float mossWeight;
         public float edgeFade;
     }
-
+    //！！！！！！！！！！life mode！！！！！！！！！！！！！！！！！！！！！！！！！！！！
     private void OnEnable()
     {
         ApplyShellTToExistingShells();
+        RebuildInstancedChunkCache();
     }
 
     private void OnValidate()
@@ -64,9 +89,22 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         chunkSkipThreshold = Mathf.Clamp01(chunkSkipThreshold);
         mossFullWeight = Mathf.Max(mossTriangleThreshold + 0.001f, mossFullWeight);
 
+        //lod
+        lodNearDistance = Mathf.Max(0f, lodNearDistance);
+        lodMidDistance = Mathf.Max(lodNearDistance + 0.01f, lodMidDistance);
+        lodFarDistance = Mathf.Max(lodMidDistance + 0.01f, lodFarDistance);
+        lodMidShellCount = Mathf.Clamp(lodMidShellCount, 1, shellCount);
+        lodFarShellCount = Mathf.Clamp(lodFarShellCount, 1, lodMidShellCount);
+
+
         ApplyShellTToExistingShells();
     }
+    private void LateUpdate()
+    {
+        DrawInstancedChunks();
+    }
 
+    //！！！！！！！！！！menu mode！！！！！！！！！！！！！！！！！！！！
     [ContextMenu("Build Moss Overlay")]
     private void BuildMossOverlay()
     {
@@ -82,6 +120,7 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         }
 
         BindTerrainMossLayerTextures(data);
+        instancedChunks.Clear();
         ClearExistingOverlay();
 
         GameObject overlayRoot = new GameObject(OverlayRootName);
@@ -143,6 +182,8 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
             }
         }
     }
+
+    //！！！！！！！！function mode！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！
 
     private bool TryGetTerrainData(out TerrainData data)
     {
@@ -306,7 +347,15 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         chunkRoot.transform.SetParent(parent, true);
         chunkRoot.transform.position = origin;
 
-        BuildShellStack(mesh, chunkRoot.transform);
+        if (enableInstancing)
+        {
+            RegisterInstancedChunk(mesh, chunkRoot.transform);
+        }
+        else
+        {
+            BuildShellStack(mesh, chunkRoot.transform);
+        }
+
         return chunkRoot;
     }
 
@@ -357,6 +406,130 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         sample.edgeFade = edgeFade;
 
         return true;
+    }
+    //繍利鯉才了崔峨秘双燕
+    private void RegisterInstancedChunk(Mesh mesh, Transform root)
+    {
+        MeshFilter meshFilter = root.GetComponent<MeshFilter>();
+        if (meshFilter == null)
+        {
+            meshFilter = root.gameObject.AddComponent<MeshFilter>();
+        }
+
+        meshFilter.sharedMesh = mesh;
+
+        instancedChunks.Add(new InstancedChunk
+        {
+            mesh = mesh,
+            root = root
+        });
+    }
+    //嶷秀産贋mesh
+    private void RebuildInstancedChunkCache()
+    {
+        instancedChunks.Clear();
+
+        Transform overlayRoot = FindOverlayRoot();
+        if (overlayRoot == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < overlayRoot.childCount; i++)
+        {
+            Transform child = overlayRoot.GetChild(i);
+
+            if (!child.name.StartsWith(ChunkNamePrefix))
+            {
+                continue;
+            }
+
+            MeshFilter meshFilter = child.GetComponent<MeshFilter>();
+            if (meshFilter == null || meshFilter.sharedMesh == null)
+            {
+                continue;
+            }
+
+            instancedChunks.Add(new InstancedChunk
+            {
+                mesh = meshFilter.sharedMesh,
+                root = child
+            });
+        }
+    }
+    private void DrawInstancedChunks()
+    {
+        if (!enableInstancing)
+        {
+            return;
+        }
+
+        if (instancedChunks.Count == 0)
+        {
+            RebuildInstancedChunkCache();
+        }
+
+        if (mossShellMaterial == null || instancedChunks.Count == 0)
+        {
+            return;
+        }
+
+        if (!mossShellMaterial.enableInstancing)
+        {
+            mossShellMaterial.enableInstancing = true;
+        }
+
+        for (int i = 0; i < instancedChunks.Count; i++)
+        {
+            InstancedChunk chunk = instancedChunks[i];
+            if (chunk.mesh == null || chunk.root == null)
+            {
+                continue;
+            }
+            int activeShellCount = GetActiveShellCountForChunk(chunk.root);
+            if (activeShellCount <= 0)
+            {
+                continue;
+            }
+
+            EnsureInstancedShellMatrices(activeShellCount);
+            EnsureInstancedPropertyBlock(activeShellCount);
+
+            Matrix4x4 matrix = chunk.root.localToWorldMatrix;
+
+            for (int shellIndex = 0; shellIndex < activeShellCount; shellIndex++)
+            {
+                instancedShellMatrices[shellIndex] = matrix;
+            }
+
+            Graphics.DrawMeshInstanced(
+                chunk.mesh,
+                0,
+                mossShellMaterial,
+                instancedShellMatrices,
+                activeShellCount,
+                instancedPropertyBlock,
+                UnityEngine.Rendering.ShadowCastingMode.Off,
+                false,
+                chunk.root.gameObject.layer
+            );
+        }
+    }
+
+    private void EnsureInstancedShellMatrices(int activeShellCount)
+    {
+        if (instancedShellMatrices == null || instancedShellMatrices.Length < activeShellCount)
+        {
+            instancedShellMatrices = new Matrix4x4[activeShellCount];
+        }
+    }
+
+    private void EnsureInstancedPropertyBlock(int activeShellCount)
+    {
+        instancedPropertyBlock ??= new MaterialPropertyBlock();
+        instancedPropertyBlock.Clear();
+        instancedPropertyBlock.SetFloat(UseInstancedShellTId, 1f);
+        instancedPropertyBlock.SetFloat(ActiveShellCountId, activeShellCount);
     }
 
     private void BuildShellStack(Mesh mesh, Transform root)
@@ -438,8 +611,46 @@ public class TerrainMossOverlayBuilder : MonoBehaviour
         shellPropertyBlock.Clear();
         meshRenderer.GetPropertyBlock(shellPropertyBlock);
         shellPropertyBlock.SetFloat(ShellTId, shellT);
+        shellPropertyBlock.SetFloat(UseInstancedShellTId, 0f);
+        shellPropertyBlock.SetFloat(ActiveShellCountId, 1f);
         meshRenderer.SetPropertyBlock(shellPropertyBlock);
     }
+    //lod資函chunk欺�犹�議鉦宣
+    private int GetActiveShellCountForChunk(Transform chunkRoot)
+    {
+        int fullCount = Mathf.Clamp(shellCount, 1, 1023);
+
+        if (!enableShellLOD)
+        {
+            return fullCount;
+        }
+
+        Camera camera = lodCamera != null ? lodCamera : Camera.main;
+        if (camera == null)
+        {
+            return fullCount;
+        }
+
+        float distance = Vector3.Distance(camera.transform.position, chunkRoot.position);
+
+        if (distance <= lodNearDistance)
+        {
+            return fullCount;
+        }
+
+        if (distance <= lodMidDistance)
+        {
+            return Mathf.Clamp(lodMidShellCount, 1, fullCount);
+        }
+
+        if (distance <= lodFarDistance)
+        {
+            return Mathf.Clamp(lodFarShellCount, 1, fullCount);
+        }
+
+        return 0;
+    }
+
 
     private bool ShouldKeepTriangle(Color a, Color b, Color c)
     {
