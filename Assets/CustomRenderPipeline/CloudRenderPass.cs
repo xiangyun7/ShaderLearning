@@ -147,7 +147,8 @@ public class CloudRenderPass : ScriptableRenderPass
         settings.cloudBoundsMin = settings.cloudBoundsPos - settings.cloudBoundsSize * 0.5f;
         settings.cloudBoundsMax = settings.cloudBoundsPos + settings.cloudBoundsSize * 0.5f;
 
-        this.renderPassEvent = RenderPassEvent.AfterRenderingSkybox;
+        //this.renderPassEvent = RenderPassEvent.AfterRenderingSkybox;
+        this.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
         ConfigureInput(ScriptableRenderPassInput.Depth);
     }
     public void setMaterial()

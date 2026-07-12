@@ -2,8 +2,8 @@ Shader "Tutorial/Tombstone"
 {
     Properties
     {
-        _BaseColor ("Base Color", Color) = (0.16, 0.42, 0.32, 1)
-        _BaseAlpha ("Base Alpha", Range(0, 1)) = 0.25
+        //_BaseColor ("Base Color", Color) = (0.16, 0.42, 0.32, 1)
+        //_BaseAlpha ("Base Alpha", Range(0, 1)) = 0.25
 
         [Header(Wide Gold Fresnel)]
         [HDR] _WideFresnelColor ("Wide Color", Color) = (1, 0.45, 0.08, 1)
@@ -33,7 +33,7 @@ Shader "Tutorial/Tombstone"
         [Header(Stone Detail Normal)]
         [Normal] _DetailNormalMap ("Detail Normal Map", 2D) = "bump" {}
         _DetailNormalTiling ("Detail Normal Tiling", Vector) = (1, 1, 0, 0)
-        _DetailNormalStrength ("Detail Normal Strength", Range(0, 5)) = 0.3
+        _DetailNormalStrength ("Detail Normal Strength", Range(0, 20)) = 0.3
 
         [Enum(Final,0,WideFresnel,1,NarrowFresnel,2,HeightMask,3,NoiseMask,4,DetailNormalTS,5)]
         _DebugMode ("Debug Mode", Float) = 0
@@ -69,8 +69,8 @@ Shader "Tutorial/Tombstone"
             //-----------params mode------------------------------------
 
             CBUFFER_START(UnityPerMaterial)
-                float4 _BaseColor;
-                float _BaseAlpha;
+                //float4 _BaseColor;
+                //float _BaseAlpha;
 
                 float4 _WideFresnelColor;
                 float _WideFresnelRange;
@@ -257,14 +257,35 @@ Shader "Tutorial/Tombstone"
 
                 clip(heightMask - _InvisibleClipThreshold);
 
-                half fresnelAlpha = saturate(
-                    _BaseAlpha
-                    + wideMask * _WideAlphaStrength
-                    + narrowMask * _NarrowAlphaStrength
-                );
+                //基础色
 
-                half alpha = fresnelAlpha * heightMask;
-                half3 basePremultiplied = _BaseColor.rgb * alpha;
+                // half fresnelAlpha = saturate(
+                //     _BaseAlpha
+                //     + wideMask * _WideAlphaStrength
+                //     + narrowMask * _NarrowAlphaStrength
+                // );
+
+                // half alpha = fresnelAlpha * heightMask;
+                // half3 basePremultiplied = _BaseColor.rgb * alpha;
+
+                //透明背景
+                half wideAlpha =
+                    wideMask * _WideAlphaStrength;
+
+                half narrowAlpha =
+                    narrowMask * _NarrowAlphaStrength;
+
+                half fresnelStrength = wideAlpha + narrowAlpha;
+                half alpha = saturate(fresnelStrength) * heightMask;
+                half3 fresnelColor =
+                    (
+                        _WideFresnelColor.rgb * wideAlpha
+                        + _NarrowFresnelColor.rgb * narrowAlpha
+                    ) / max(fresnelStrength, 0.0001h);
+
+                // Blend One OneMinusSrcAlpha 要输出预乘 Alpha 颜色
+                half3 premultipliedColor = fresnelColor * alpha;
+
 
                 half3 emission =
                     (   wideMask * _WideFresnelColor.rgb * _WideEmissionStrength
@@ -272,7 +293,8 @@ Shader "Tutorial/Tombstone"
                           * _NarrowEmissionStrength
                     ) * heightMask;
 
-                return half4(basePremultiplied + emission, alpha);
+                //return half4(basePremultiplied + emission, alpha);
+                return half4(premultipliedColor + emission, alpha);
             }
             ENDHLSL
         }

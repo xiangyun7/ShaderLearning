@@ -50,10 +50,10 @@ MonoBehaviour:
     rayStep: 10
     densityMultiplier: 0.03
     cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
-    cloudScale: {x: 1, y: 1, z: 1}
+    cloudScale: {x: 2, y: 2, z: 2}
     noiseTileSize: 500
-    densityThreshold: 0.2
-    densityContrast: 8
+    densityThreshold: 0.25
+    densityContrast: 10
     detailStrength: 10
     edgeFadeDistance: 500
     cloudFilterMaterial: {fileID: 2100000, guid: 5cdc6d2f1f5842245ad5ca34ad94091c,
