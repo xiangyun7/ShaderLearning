@@ -164,9 +164,9 @@ Material:
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _DeepColor: {r: 0.02, g: 0.11999995, b: 0.24999997, a: 1}
+    - _DeepColor: {r: 0.016098991, g: 0.1855202, b: 0.46540874, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _ShallowColor: {r: 0.24999997, g: 0.75, b: 0.8, a: 1}
+    - _ShallowColor: {r: 0.25, g: 0.75, b: 0.8, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _WaveDirection: {r: 1, g: 1, b: 0, a: 0}
   m_BuildTextureStacks: []

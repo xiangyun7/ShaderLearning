@@ -48,13 +48,13 @@ MonoBehaviour:
     volumeCloudDownsample: 4
     blueNoiseMap: {fileID: 2800000, guid: 36f118343fc974119bee3d09e2111500, type: 3}
     rayStep: 10
-    densityMultiplier: 0.03
+    densityMultiplier: 0.04
     cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
     cloudScale: {x: 2, y: 2, z: 2}
     noiseTileSize: 500
     densityThreshold: 0.25
-    densityContrast: 10
-    detailStrength: 10
+    densityContrast: 4
+    detailStrength: 20
     edgeFadeDistance: 500
     cloudFilterMaterial: {fileID: 2100000, guid: 5cdc6d2f1f5842245ad5ca34ad94091c,
       type: 2}
@@ -62,8 +62,8 @@ MonoBehaviour:
     filterSigma: 0.5
     filterRangeSigma: 0.1
     filterStrength: 0.2
-    cloudWindDirection: {x: 0, y: 0, z: 1}
-    cloudWindSpeed: 2
+    cloudWindDirection: {x: 0, y: 1, z: 1}
+    cloudWindSpeed: 5
 --- !u!114 &-1878332245247344467
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -119,7 +119,8 @@ MonoBehaviour:
   - {fileID: -1878332245247344467}
   - {fileID: -3623176508052083610}
   - {fileID: 4664215133241472768}
-  m_RendererFeatureMap: adc0de57c6d2eee566ec038f29e4b7cd00f7db9cf39eba40
+  - {fileID: 6155893328107801514}
+  m_RendererFeatureMap: adc0de57c6d2eee566ec038f29e4b7cd00f7db9cf39eba40aa0b10d95d206e55
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -179,3 +180,35 @@ MonoBehaviour:
     passEvent: 500
     bloomMaterial: {fileID: 2100000, guid: fc00aa7d71116ff479a7de4b751d3662, type: 2}
     bloomIntensity: 1
+--- !u!114 &6155893328107801514
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f2a2002bbf828144aa093e03bb96986, type: 3}
+  m_Name: VolumeFogRenderFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  settings:
+    fogMaterial: {fileID: 2100000, guid: 02856a0d0374410469a7439d3548c960, type: 2}
+    fogBoundsPos: {x: 0, y: 20, z: 0}
+    fogBoundsSize: {x: 1000, y: 60, z: 1000}
+    fogBoundsMin: {x: -500, y: -10, z: -500}
+    fogBoundsMax: {x: 500, y: 50, z: 500}
+    baseDensity: 0.02
+    extinction: 0.4
+    scatteringAlbedo: 0.75
+    ambientScatteringColor: {r: 0.6551523, g: 0.64645374, b: 0.74213827, a: 1}
+    ambientScatteringStrength: 0.5
+    fogStartDistance: 90
+    fogFullDensityDistance: 180
+    fogFullDensityHeight: 5
+    fogTopHeight: 40
+    rayStep: 100
+    transmittanceCutoff: 0.01
+    downsample: 4
+    blueNoiseMap: {fileID: 2800000, guid: 5036150002dac8e448c106167488cd61, type: 3}

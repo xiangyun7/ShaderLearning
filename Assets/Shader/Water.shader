@@ -91,6 +91,16 @@ Shader "Tutorial/Water"
             half4 _ShallowColor,_DeepColor;
             float _DebugMode;
 
+            //水面雾混合
+            float _BaseDensity;
+            float _Extinction;
+            float _ScatteringAlbedo;
+            float4 _AmbientScatteringColor;
+            float _AmbientScatteringStrength;
+            float _FogStartDistance;
+            float _FogFullDensityDistance;
+
+
             struct TessellationFactors
             {
                 float edge[3] : SV_TessFactor;
@@ -206,6 +216,36 @@ Shader "Tutorial/Water"
                 output.oceanUV = oceanUV;
                 output.clipDepth = clipDepth;
                 return output;
+            }
+
+            //体积雾混合颜色
+            float IntegrateWaterFogDensity(float viewDistance)
+            {
+                float startDistance = max(_FogStartDistance, 0.0);
+                float fullDistance = max(_FogFullDensityDistance, startDistance + 0.001);
+                float rampLength = fullDistance - startDistance;
+
+                if (viewDistance <= startDistance)
+                    return 0.0;
+
+                if (viewDistance < fullDistance)
+                {
+                    float u = saturate((viewDistance - startDistance) / rampLength);
+                    float integratedRamp = u * u * u - 0.5 * u * u * u * u;
+                    return max(_BaseDensity, 0.0) * rampLength * integratedRamp;
+                }
+
+                return max(_BaseDensity, 0.0) * (0.5 * rampLength + viewDistance - fullDistance);
+            }
+
+            half3 ApplyDistanceFogToWater(half3 waterColor, float3 positionWS)
+            {
+                float viewDistance = distance(_WorldSpaceCameraPos, positionWS);
+                float integratedDensity = IntegrateWaterFogDensity(viewDistance);
+                float opticalDepth = integratedDensity * max(_Extinction, 0.0);
+                float transmittance = exp(-opticalDepth);
+                half3 fogColor = _AmbientScatteringColor.rgb * _AmbientScatteringStrength * _ScatteringAlbedo;
+                return waterColor * transmittance + fogColor * (1.0 - transmittance);
             }
             //————————shader mode—————————————————————
             Tessdata vert(appdata input)
@@ -431,6 +471,7 @@ Shader "Tutorial/Water"
                 {
                     return half4(specular, 1);
                 }
+                finalColor = ApplyDistanceFogToWater(finalColor, input.positionWS);
                 return half4(finalColor, 1);
             }
             ENDHLSL

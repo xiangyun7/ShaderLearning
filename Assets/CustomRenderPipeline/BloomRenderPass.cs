@@ -17,6 +17,12 @@ class BloomRenderPass : ScriptableRenderPass
     public BloomRenderPass(RenderPassEvent evt)
     {
         renderPassEvent = evt;
+
+        ConfigureInput(
+            ScriptableRenderPassInput.Color |
+            ScriptableRenderPassInput.Depth
+        );
+
         tempRT1Id = Shader.PropertyToID(k_TempRT1);
         tempRT2Id = Shader.PropertyToID(k_TempRT2);
     }
@@ -27,11 +33,7 @@ class BloomRenderPass : ScriptableRenderPass
         this.bloomMaterial = mat;
         this.intensity = intensity;
     }
-    public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-    {
-        // 声明本 Pass 会读/写相机颜色目标
-        ConfigureInput(ScriptableRenderPassInput.Color);
-    }
+    
     public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
     {
         if (bloomMaterial == null || renderer == null) return;

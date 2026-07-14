@@ -58,7 +58,7 @@ public class VolumeCloudParams
     public float densityThreshold = 0.45f;//密度出现云的阈值
     [Range(1.0f, 20.0f)]
     public float densityContrast = 4.0f;
-    [Range(0.0f, 10f)]
+    [Range(0.0f, 100f)]
     public float detailStrength = 0.5f;
     [Header("边缘衰减")]
     [Range(0.0f, 5000.0f)]
@@ -80,13 +80,13 @@ public class VolumeCloudParams
 }
 public class CloudRenderFeature : ScriptableRendererFeature
 {
-    CloudRenderPass CloudRenderPass;
+    private CloudRenderPass cloudRenderPass;
     public VolumeCloudParams settings = new VolumeCloudParams();
 
     public override void Create()
     {
-        CloudRenderPass?.Dispose();
-        CloudRenderPass = new CloudRenderPass(settings);
+        cloudRenderPass?.Dispose();
+        cloudRenderPass = new CloudRenderPass(settings);
     }
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
@@ -97,12 +97,12 @@ public class CloudRenderFeature : ScriptableRendererFeature
             return;
         if (settings.cloudMaterial == null)
             return;
-        renderer.EnqueuePass(CloudRenderPass);
+        renderer.EnqueuePass(cloudRenderPass);
     }
     protected override void Dispose(bool disposing)
     {
-        CloudRenderPass?.Dispose();
-        CloudRenderPass = null;
+        cloudRenderPass?.Dispose();
+        cloudRenderPass = null;
     }
     //———————function mode—————————————
 

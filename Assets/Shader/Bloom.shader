@@ -4,9 +4,9 @@ Shader "Tutorial/Bloom"
     {
         _MainTex ("Source Texture", 2D) = "white" {}
         //_BloomTex ("Bloom", 2D) = "black" {}
-        _Threshold ("Bloom Threshold", Range(0, 1)) = 0.75//Ä£ºýãÐÖµ
-        _Intensity ("Bloom Intensity", Range(0, 10)) = 1.0//Ä£ºýÁÁ¶È
-        _BlurSize ("Blur Size", Range(0.5, 4)) = 1.0//Ä£ºý³Ì¶È
+        _Threshold ("Bloom Threshold", Range(0, 1)) = 0.75//Ä£ï¿½ï¿½ï¿½ï¿½Öµ
+        _Intensity ("Bloom Intensity", Range(0, 10)) = 1.0//Ä£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+        _BlurSize ("Blur Size", Range(0.5, 4)) = 1.0//Ä£ï¿½ï¿½ï¿½Ì¶ï¿½
     }
 
 
@@ -15,7 +15,7 @@ Shader "Tutorial/Bloom"
     {
         Tags { "RenderPipeline"="UniversalPipeline" }
         LOD 100
-        Cull Off ZWrite Off ZTest Always//ºó´¦Àí²»ÐèÒªÌÞ³ý£¬Éî¶ÈÐ´Èë¡£Éî¶È²âÊÔÓÀÔ¶Í¨¹ý
+        Cull Off ZWrite Off ZTest Always//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Þ³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ë¡£ï¿½ï¿½È²ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶Í¨ï¿½ï¿½
 
 
         Pass
@@ -25,6 +25,7 @@ Shader "Tutorial/Bloom"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
             TEXTURE2D(_MainTex);SAMPLER(sampler_MainTex);
             float _Threshold;float _Intensity;
@@ -52,12 +53,20 @@ Shader "Tutorial/Bloom"
             
             half4 frag(v2f input) : SV_Target
             {
-                half4 clr = SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv);
+                float rawDepth = SampleSceneDepth(input.uv);
+                // ï¿½ï¿½ÕºÐ²ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½
+                // Windows/D3D Í¨ï¿½ï¿½Ê¹ï¿½ï¿½ Reversed-Zï¿½ï¿½ï¿½ï¿½Ê±Ô¶ï¿½ï¿½ï¿½ï¿½ 0ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 1ï¿½ï¿½
+                #if UNITY_REVERSED_Z
+                    if (rawDepth <= 0.00001)
+                        return half4(0.0, 0.0, 0.0, 1.0);
+                #else
+                    if (rawDepth >= 0.99999)
+                        return half4(0.0, 0.0, 0.0, 1.0);
+                #endif
+                half3 color = SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex,input.uv).rgb;
 
-                //¼òµ¥Bloom(ÌáÁÁ¶È)
-                half3 brightness = max(clr.rgb - _Threshold, 0.0);
-
-                return half4(brightness,1.0);
+                half3 brightness = max(color - _Threshold, 0.0);
+                return half4(brightness, 1.0);
             }
             ENDHLSL
         }
@@ -98,8 +107,8 @@ Shader "Tutorial/Bloom"
             
             half4 frag(v2f i) : SV_Target
             {
-                float2 offset = _MainTex_TexelSize.xy * float2(_BlurSize, 0.0);//ÈÃºáÏòµÄÏñËØ±äÄ£ºý
-                //¸ßË¹ºáÏòÄ£ºý
+                float2 offset = _MainTex_TexelSize.xy * float2(_BlurSize, 0.0);//ï¿½Ãºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ø±ï¿½Ä£ï¿½ï¿½
+                //ï¿½ï¿½Ë¹ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½
                 half3 c0 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).rgb * 0.227027;
                 half3 c1 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv + offset * 1.0).rgb * 0.1945946;
                 half3 c2 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv - offset * 1.0).rgb * 0.1945946;
