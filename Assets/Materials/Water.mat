@@ -146,11 +146,11 @@ Material:
     - _Surface: 0
     - _TessCullBias: -50
     - _TessDistancePower: 1
-    - _TessFarDistance: 150
-    - _TessFarMultiplier: 0.1
-    - _TessMaxFactor: 64
+    - _TessFarDistance: 100
+    - _TessFarMultiplier: 0.2
+    - _TessMaxFactor: 128
     - _TessMinFactor: 4
-    - _TessNearDistance: 30
+    - _TessNearDistance: 10
     - _TessPatchCull: 1
     - _WaveAmount: 11
     - _WaveAmplitude: 0.15

@@ -17,7 +17,7 @@ Shader "Tutorial/Water"
         [Header(Tess)]
         _TessDistancePower ("Tess Distance Power", Range(1, 3.0)) = 1.8
         _TessMinFactor ("Tess Min Factor", Range(1, 8)) = 1
-        _TessMaxFactor ("Tess Max Factor", Range(1, 64)) = 16
+        _TessMaxFactor ("Tess Max Factor", Range(1, 256)) = 16
         _TessNearDistance ("Tess Near Distance", Float) = 20
         _TessFarDistance ("Tess Far Distance", Float) = 120
         _TessFarMultiplier ("Tess Far Multiplier", Range(0.01, 1)) = 0.15

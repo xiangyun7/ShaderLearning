@@ -14,7 +14,6 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     //参数声明
     public int resolution = 1024;
     private int threadGroupsX, threadGroupsY;
-    public float lengthScale = 200f;
     public float gravity = 9.81f;
     public float depth = 10f;
     private float LowCutOff = 0.0001f;
@@ -22,6 +21,9 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     public int seed = 28;
     public float _RepeatTime = 200f;
     public float Speed = 0.5f;//波随时间的运动速度
+    private const int SpectrumLayerCount = 4;
+    private const int JonswapPerLayer = 2;
+    private const int JonswapParameterCount = SpectrumLayerCount * JonswapPerLayer;
     //波浪泡沫参数声明
     public Vector2 WaveSharp = new Vector2(0.4f, 0.4f);
     [Range(-1.0f, 1.0f)]
@@ -45,12 +47,21 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
 
     private struct JONSWAP_ComputeSettings
     {
-        public float scale;
-        public float angle;
-        public float alpha;
-        public float peakOmega;
-        public float gamma;
+        public float scale, angle, spreadBlend, swell;
+        public float alpha, peakOmega, gamma, shortWavesFade;
     }//jonswap初始频谱给computeshader读的数据
+    private JONSWAP_ComputeSettings[] computeSpectrums = new JONSWAP_ComputeSettings[JonswapParameterCount];
+    [System.Serializable]
+    public struct SpectrumLayerSettings
+    {
+        public bool enabled;
+        [Min(1)] public float lengthScale;
+        public JONSWAP_DisplaySettings primarySpectrum;
+        public JONSWAP_DisplaySettings secondarySpectrum;
+    }
+
+    [Header("Spectrum Layers")]
+    public SpectrumLayerSettings[] spectrumLayers = new SpectrumLayerSettings[SpectrumLayerCount];
 
     [System.Serializable]
     public struct JONSWAP_DisplaySettings
@@ -59,11 +70,10 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         public float windSpeed;
         [Range(0, 360)] public float windDirection;
         public float fetch;
+        [Range(0, 1)] public float spreadBlend, swell, shortWavesFade;
         public float peakEnhancement;
     }//jonswap给人调整的参数
     private ComputeBuffer JonswapBuffer;
-    [Header("JONSWAP Spectrum")]
-    public JONSWAP_DisplaySettings displaySpectrum;
     //水体材质声明
     [Header("Water Material")]
     public Material waterMaterial;
@@ -93,17 +103,17 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
 
     private void Reset()
     {
-        displaySpectrum.scale = 0.4f;
-        displaySpectrum.windSpeed = 1200.0f;
-        displaySpectrum.windDirection = 130.0f;
-        displaySpectrum.fetch = 600.0f;
-        displaySpectrum.peakEnhancement = 5.0f;
     }
     void OnEnable()
     {
         if (fftOceanCompute == null)
         {
             Debug.LogError("FFT Ocean Compute Shader is missing.", this);
+            return;
+        }
+        if (spectrumLayers == null || spectrumLayers.Length != SpectrumLayerCount)
+        {
+            Debug.LogError("FFT Ocean requires exactly four spectrum layers.", this);
             return;
         }
 
@@ -117,7 +127,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         CS_VerticalIFFT = fftOceanCompute.FindKernel("CS_VerticalIFFT");
         CS_AssembleTextures = fftOceanCompute.FindKernel("CS_AssembleTextures");
 
-        pp_Texture = CreateRenderTexArray(resolution, resolution, 1,RenderTextureFormat.ARGBFloat, false);
+        pp_Texture = CreateRenderTexArray(resolution, resolution, SpectrumLayerCount, RenderTextureFormat.ARGBFloat, false);
         UpdateTexture = CreateRenderTexArray(resolution, resolution,2, RenderTextureFormat.ARGBFloat, false);
         FourierTexture = CreateRenderTexArray(resolution, resolution,2, RenderTextureFormat.ARGBFloat, false);
         _DisplacementTexture = CreateRenderTexArray(resolution, resolution,1, RenderTextureFormat.ARGBFloat, false);
@@ -135,7 +145,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     {
         if (waterMaterial != null)
         {
-            waterMaterial.SetFloat(OceanLengthScaleID, lengthScale);
+            waterMaterial.SetFloat(OceanLengthScaleID, spectrumLayers[0].lengthScale);
         }
         SetCompParam();
         BindWaterMaterialValue();
@@ -173,7 +183,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
         waterMaterial.SetTexture(DisplacementTextureID, _DisplacementTexture);
         waterMaterial.SetTexture(SlopeTextureID, _SlopeTexture);
-        waterMaterial.SetFloat(OceanLengthScaleID, lengthScale);
+        waterMaterial.SetFloat(OceanLengthScaleID, spectrumLayers[0].lengthScale);
         //waterMaterial.SetFloat("_SpecularStrength", _SpecularStrength);
         //waterMaterial.SetFloat("_SunGlintStrength", _SunGlintStrength);
         //waterMaterial.SetFloat("_SpecularPower", _SpecularPower);
@@ -207,7 +217,9 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     void SetCompParam()
     {
         fftOceanCompute.SetInt("_Resolution", resolution);
-        fftOceanCompute.SetFloat("_LengthScale", lengthScale);
+        fftOceanCompute.SetFloat("_LengthScale", spectrumLayers[0].lengthScale);
+        Vector4 lengthScales = new Vector4(spectrumLayers[0].lengthScale, spectrumLayers[1].lengthScale, spectrumLayers[2].lengthScale, spectrumLayers[3].lengthScale);
+        fftOceanCompute.SetVector("_LengthScales", lengthScales);
         fftOceanCompute.SetFloat("_Gravity", gravity);
         fftOceanCompute.SetFloat("_Depth", depth);
         fftOceanCompute.SetFloat("_LowCutOff", LowCutOff);
@@ -227,11 +239,14 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     {
         JONSWAP_ComputeSettings compute = new JONSWAP_ComputeSettings();
 
-        compute.scale = display.scale;
+        compute.scale = display.scale; 
         compute.angle = display.windDirection * Mathf.Deg2Rad;
-        compute.alpha = JonswapAlpha(display.fetch, display.windSpeed);
+        compute.spreadBlend = display.spreadBlend; 
+        compute.swell = display.swell;
+        compute.alpha = JonswapAlpha(display.fetch, display.windSpeed); 
         compute.peakOmega = JonswapPeakFrequency(display.fetch, display.windSpeed);
-        compute.gamma = display.peakEnhancement;
+        compute.gamma = display.peakEnhancement; 
+        compute.shortWavesFade = display.shortWavesFade;
 
         return compute;
     }
@@ -239,14 +254,16 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private float JonswapAlpha(float fetchValue, float windSpeedValue)
     {
         float safeWindSpeed = Mathf.Max(0.01f, windSpeedValue);
-        float value = gravity * fetchValue / (safeWindSpeed * safeWindSpeed);
+        float safeFetch = Mathf.Max(0.01f, fetchValue);
+        float value = gravity * safeFetch / (safeWindSpeed * safeWindSpeed);
         return 0.076f * Mathf.Pow(value, -0.22f);
     }
 
     private float JonswapPeakFrequency(float fetchValue, float windSpeedValue)
     {
         float safeWindSpeed = Mathf.Max(0.01f, windSpeedValue);
-        float value = safeWindSpeed * fetchValue / (gravity * gravity);
+        float safeFetch = Mathf.Max(0.01f, fetchValue);
+        float value = safeWindSpeed * safeFetch / (gravity * gravity);
         return 22.0f * Mathf.Pow(value, -0.33f);
     }
     private void CreateJonswapBuffer()
@@ -257,13 +274,28 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
 
         int stride = Marshal.SizeOf(typeof(JONSWAP_ComputeSettings));
-        JonswapBuffer = new ComputeBuffer(1, stride);
+        JonswapBuffer = new ComputeBuffer(JonswapParameterCount, stride);
     }
     private void UploadJonswapBuffer()
     {
-        JONSWAP_ComputeSettings[] data = new JONSWAP_ComputeSettings[1];
-        data[0] = CreateJonswapComputeSettings(displaySpectrum);
-        JonswapBuffer.SetData(data);
+        for (int layerIndex = 0; layerIndex < SpectrumLayerCount; layerIndex++)
+        {
+            SpectrumLayerSettings layer = spectrumLayers[layerIndex];
+            JONSWAP_DisplaySettings primary = layer.primarySpectrum;
+            JONSWAP_DisplaySettings secondary = layer.secondarySpectrum;
+            int baseIndex = layerIndex * JonswapPerLayer;
+
+            if (!layer.enabled)
+            {
+                primary.scale = 0.0f;
+                secondary.scale = 0.0f;
+            }
+
+            computeSpectrums[baseIndex] = CreateJonswapComputeSettings(primary);
+            computeSpectrums[baseIndex + 1] = CreateJonswapComputeSettings(secondary);
+        }
+
+        JonswapBuffer.SetData(computeSpectrums);
         fftOceanCompute.SetBuffer(CS_Pinpu, "_JonswapParameters", JonswapBuffer);
     }
     private void RunKernel()

@@ -5,6 +5,8 @@
 #pragma kernel CS_VerticalIFFT
 #pragma kernel CS_AssembleTextures
 #define PI 3.14159265359
+#define SPECTRUM_LAYER_COUNT 4
+#define JONSWAP_PER_LAYER 2
 
 RWTexture2DArray<float4> pp_Texture;
 RWTexture2DArray<float4> UpdateTexture;
@@ -12,6 +14,7 @@ RWTexture2DArray<float4> FourierTexture, _DisplacementTexture;
 RWTexture2DArray<float4> _SlopeTexture;
 int _Resolution;
 float _LengthScale;
+float4 _LengthScales;
 float _Gravity;
 float _Depth;
 float _LowCutOff;
@@ -23,11 +26,8 @@ float _FoamBias, _FoamDecayRate, _FoamAdd, _FoamPower;
 
 struct JONSWAP_Parameters
 {
-    float scale; // 频谱整体强度
-    float angle; // 风向，弧度
-    float alpha; // JONSWAP 能量系数
-    float peakOmega; // 峰值角频率
-    float gamma; // 峰值增强
+    float scale, angle, spreadBlend, swell;
+    float alpha, peakOmega, gamma, shortWavesFade;
 };
 
 StructuredBuffer<JONSWAP_Parameters> _JonswapParameters;
@@ -117,6 +117,51 @@ float DirectionWeight(float2 k, float angle)
     float d = abs(dot(kDir, windDir));
     return d * d;
 }
+float NormalizationFactor(float s)
+{
+    float s2 = s * s;
+    float s3 = s2 * s;
+    float s4 = s3 * s;
+
+    if (s < 5.0)
+        return -0.000564 * s4 + 0.00776 * s3 - 0.044 * s2 + 0.192 * s + 0.163;
+
+    return -4.80e-08 * s4 + 1.07e-05 * s3 - 9.53e-04 * s2 + 5.90e-02 * s + 0.393;
+}
+
+float Cosine2s(float theta, float s)
+{
+    return NormalizationFactor(s) * pow(abs(cos(0.5 * theta)), 2.0 * s);
+}
+float SpreadPower(float omega, float peakOmega)
+{
+    float safePeakOmega = max(peakOmega, 1e-6);
+    float ratio = abs(omega / safePeakOmega);
+
+    if (omega <= safePeakOmega)
+        return 6.97 * pow(ratio, 5.0);
+
+    return 9.77 * pow(ratio, -2.5);
+}
+
+float DirectionSpectrum(float2 k, float omega, JONSWAP_Parameters p)
+{
+    float theta = atan2(k.y, k.x);
+    float safePeakOmega = max(p.peakOmega, 1e-6);
+    float s = SpreadPower(omega, safePeakOmega) + 16.0 * tanh(min(omega / safePeakOmega, 20.0)) * p.swell * p.swell;
+    float legacyDirection = DirectionWeight(k, p.angle);
+    float fullDirection = Cosine2s(theta - p.angle, s);
+
+    return lerp(legacyDirection, fullDirection, saturate(p.spreadBlend));
+}
+float ShortWaveFade(float kLength, JONSWAP_Parameters p)
+{
+    return exp(-p.shortWavesFade * p.shortWavesFade * kLength * kLength / 10000.0);
+}
+float EvaluateSpectrum(float2 k, float kLength, float omega, JONSWAP_Parameters p)
+{
+    return JONSWAP(omega, p) * DirectionSpectrum(k, omega, p) * ShortWaveFade(kLength, p);
+}
 
 float2 EulerFormula(float x)
 {
@@ -128,8 +173,8 @@ float2 ComplexMul(float2 a, float2 b)
 {
     return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
 }
-//Kernel
-[numthreads(8,8,1)]
+//Kernel mode
+[numthreads(8, 8, 1)]
 void CS_Pinpu(uint3 id : SV_DISPATCHTHREADID)
 {
     uint resolution = (uint) _Resolution;
@@ -138,43 +183,41 @@ void CS_Pinpu(uint3 id : SV_DISPATCHTHREADID)
     {
         return;
     }
+
     float halfResolution = resolution * 0.5;
-    // deltaK 是频谱格子的间隔，LengthScale 越大，频率间隔越细。
-    float deltaK = 2.0 * PI / _LengthScale;
-    // 把纹理坐标 id.xy 转成以中心为 0 的频率坐标 k。
-    float2 k = (float2(id.xy) - halfResolution) * deltaK;
-    float kLength = length(k);
 
-    if (kLength < _LowCutOff || kLength > _HighCutOff)
+    for (uint layerIndex = 0; layerIndex < SPECTRUM_LAYER_COUNT; layerIndex++)
     {
-        pp_Texture[uint3(id.xy, 0)] = float4(0, 0, 0, 0);
-        return;
-    }//把高频波和低频波删除
-    
-    JONSWAP_Parameters p = _JonswapParameters[0];
-    
-    // 通过色散关系把 k 转成角频率 omega。
-    float omega = Dispersion(kLength);
+        float lengthScale = max(_LengthScales[layerIndex], 0.001);
+        float deltaK = 2.0 * PI / lengthScale;
+        float2 k = (float2(id.xy) - halfResolution) * deltaK;
+        float kLength = length(k);
 
-    // JONSWAP 给出这个频率的能量。
-    float spectrum = JONSWAP(omega, p);
+        if (kLength < _LowCutOff || kLength > _HighCutOff)
+        {
+            pp_Texture[uint3(id.xy, layerIndex)] = float4(0, 0, 0, 0);
+            continue;
+        }
 
-    // 方向权重让波沿风向分布。
-    spectrum *= DirectionWeight(k, p.angle);
+        uint baseIndex = layerIndex * JONSWAP_PER_LAYER;
+        JONSWAP_Parameters primary = _JonswapParameters[baseIndex];
+        JONSWAP_Parameters secondary = _JonswapParameters[baseIndex + 1];
 
-    // JONSWAP 是 omega 频域的能量，这里转换到 k 空间的频谱采样尺度。
-    float dOmegadk = DispersionDerivative(kLength);
-    float amplitude = sqrt(max(0.0, spectrum * 2.0 * abs(dOmegadk) / kLength * deltaK * deltaK));
+        float omega = Dispersion(kLength);
+        float spectrum = EvaluateSpectrum(k, kLength, omega, primary);
 
-    // 每个频谱像素用不同 seed 生成稳定高斯随机数。
-    uint seed = id.x + id.y * (uint) resolution + (uint) _Seed * 131U;
-    float2 gaussian = Gaussian(seed);
+        if (secondary.scale > 0.0)
+        {
+            spectrum += EvaluateSpectrum(k, kLength, omega, secondary);
+        }
 
-    // h0(k)：初始频谱复数，x 是实部，y 是虚部。
-    float2 h0 = gaussian * amplitude;
+        float dOmegadk = DispersionDerivative(kLength);
+        float amplitude = sqrt(max(0.0, spectrum * 2.0 * abs(dOmegadk) / kLength * deltaK * deltaK));
+        uint layerSeed = id.x + id.y * resolution + (uint) _Seed * 131U + layerIndex * 2654435761U;
+        float2 h0 = Gaussian(layerSeed) * amplitude;
 
-    pp_Texture[uint3(id.xy, 0)] = float4(h0.x, h0.y, 0.0, 0.0);
-    
+        pp_Texture[uint3(id.xy, layerIndex)] = float4(h0, 0.0, 0.0);
+    }
 }
 
 [numthreads(8, 8, 1)]
