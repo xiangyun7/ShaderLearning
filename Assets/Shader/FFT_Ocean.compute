@@ -7,13 +7,15 @@
 #define PI 3.14159265359
 #define SPECTRUM_LAYER_COUNT 4
 #define JONSWAP_PER_LAYER 2
+#define SPECTRUM_SLICES_PER_LAYER 2
+#define SPECTRUM_SLICE_COUNT (SPECTRUM_LAYER_COUNT * SPECTRUM_SLICES_PER_LAYER)
 
 RWTexture2DArray<float4> pp_Texture;
 RWTexture2DArray<float4> UpdateTexture;
 RWTexture2DArray<float4> FourierTexture, _DisplacementTexture;
 RWTexture2DArray<float4> _SlopeTexture;
 int _Resolution;
-float _LengthScale;
+
 float4 _LengthScales;
 float _Gravity;
 float _Depth;
@@ -230,70 +232,69 @@ void CS_GongEPinpu(uint3 id : SV_DISPATCHTHREADID)
         return;
     }
 
-    float2 h0 = pp_Texture[uint3(id.xy, 0)].rg;
+    uint2 negativeCoord = uint2((resolution - id.x) % resolution, (resolution - id.y) % resolution);
 
-    uint2 negativeCoord = uint2(
-        (resolution - id.x) % resolution,
-        (resolution - id.y) % resolution
-    );
+    for (uint layerIndex = 0; layerIndex < SPECTRUM_LAYER_COUNT; layerIndex++)
+    {
+        float2 h0 = pp_Texture[uint3(id.xy, layerIndex)].rg;
+        float2 h0MinusK = pp_Texture[uint3(negativeCoord, layerIndex)].rg;
 
-    float2 h0MinusK = pp_Texture[uint3(negativeCoord, 0)].rg;
-
-    pp_Texture[uint3(id.xy, 0)] = float4(
-        h0.x,
-        h0.y,
-        h0MinusK.x,
-        -h0MinusK.y
-    );
+        pp_Texture[uint3(id.xy, layerIndex)] = float4(h0, h0MinusK.x, -h0MinusK.y);
+    }
 }
 [numthreads(8, 8, 1)]
 void CS_Update(uint3 id : SV_DISPATCHTHREADID)
 {
-    //提取初始频谱
-    float4 Initial = pp_Texture[uint3(id.xy, 0)];
-    float2 h0 = Initial.xy;
-    float2 h0conju = Initial.zw;
-
-    float halfRes = _Resolution / 2.0f;
-    float2 k = (id.xy - halfRes) * 2.0f * PI / _LengthScale;
-    float kLength = length(k);
-    float kLengthRcp = rcp(kLength);
-
-    if (kLength < 0.0001f)
+    for (uint layerIndex = 0; layerIndex < SPECTRUM_LAYER_COUNT; layerIndex++)
     {
-        kLengthRcp = 1.0f;
-    }
+        float4 Initial = pp_Texture[uint3(id.xy, layerIndex)];
+        float2 h0 = Initial.xy;
+        float2 h0conju = Initial.zw;
 
-    float w0 = 2.0f * PI / _RepeatTime;
-    float dispersion = floor(sqrt(_Gravity * kLength) / w0) * w0 * _FrameTime;
+        float halfRes = _Resolution * 0.5;
+        float lengthScale = max(_LengthScales[layerIndex], 0.001);
+        float2 k = (float2(id.xy) - halfRes) * 2.0 * PI / lengthScale;
+        float kLength = length(k);
+        float kLengthRcp = rcp(kLength);
 
-    float2 exponent = EulerFormula(dispersion);
+        if (kLength < 0.0001f)
+        {
+            kLengthRcp = 1.0f;
+        }
 
-    float2 htime = ComplexMul(h0, exponent) + ComplexMul(h0conju, float2(exponent.x, -exponent.y));
-    float2 ihtime = float2(-htime.y, htime.x);
+        float w0 = 2.0f * PI / _RepeatTime;
+        float dispersion = floor(sqrt(_Gravity * kLength) / w0) * w0 * _FrameTime;
 
-    float2 displacementX = ihtime * k.x * kLengthRcp;
-    float2 displacementY = htime;
-    float2 displacementZ = ihtime * k.y * kLengthRcp;
+        float2 exponent = EulerFormula(dispersion);
 
-    float2 displacementX_dx = -htime * k.x * k.x * kLengthRcp;
-    float2 displacementY_dx = ihtime * k.x;
-    float2 displacementZ_dx = -htime * k.x * k.y * kLengthRcp;
+        float2 htime = ComplexMul(h0, exponent) + ComplexMul(h0conju, float2(exponent.x, -exponent.y));
+        float2 ihtime = float2(-htime.y, htime.x);
 
-    float2 displacementY_dz = k.y * ihtime;
-    float2 displacementZ_dz = -htime * k.y * k.y * kLengthRcp;
+        float2 displacementX = ihtime * k.x * kLengthRcp;
+        float2 displacementY = htime;
+        float2 displacementZ = ihtime * k.y * kLengthRcp;
 
-    float2 htimeDisplacementX = float2(displacementX.x - displacementZ.y, displacementX.y + displacementZ.x);
-    float2 htimeDisplacementZ = float2(displacementY.x - displacementZ_dx.y, displacementY.y + displacementZ_dx.x);
+        float2 displacementX_dx = -htime * k.x * k.x * kLengthRcp;
+        float2 displacementY_dx = ihtime * k.x;
+        float2 displacementZ_dx = -htime * k.x * k.y * kLengthRcp;
+
+        float2 displacementY_dz = k.y * ihtime;
+        float2 displacementZ_dz = -htime * k.y * k.y * kLengthRcp;
+
+        float2 htimeDisplacementX = float2(displacementX.x - displacementZ.y, displacementX.y + displacementZ.x);
+        float2 htimeDisplacementZ = float2(displacementY.x - displacementZ_dx.y, displacementY.y + displacementZ_dx.x);
             
-    float2 htimeSlopeX = float2(displacementY_dx.x - displacementY_dz.y, displacementY_dx.y + displacementY_dz.x);
-    float2 htimeSlopeZ = float2(displacementX_dx.x - displacementZ_dz.y, displacementX_dx.y + displacementZ_dz.x);
+        float2 htimeSlopeX = float2(displacementY_dx.x - displacementY_dz.y, displacementY_dx.y + displacementY_dz.x);
+        float2 htimeSlopeZ = float2(displacementX_dx.x - displacementZ_dz.y, displacementX_dx.y + displacementZ_dz.x);
     
-    UpdateTexture[uint3(id.xy, 0)] = float4(htimeDisplacementX, htimeDisplacementZ);
-    UpdateTexture[uint3(id.xy, 1)] = float4(htimeSlopeX, htimeSlopeZ);
+        uint baseSlice = layerIndex * SPECTRUM_SLICES_PER_LAYER;
+        UpdateTexture[uint3(id.xy, baseSlice)] = float4(htimeDisplacementX, htimeDisplacementZ);
+        UpdateTexture[uint3(id.xy, baseSlice + 1)] = float4(htimeSlopeX, htimeSlopeZ);
+    }
 }
-#define SIZE 1024
-#define LOG_SIZE 10
+
+#define SIZE 512
+#define LOG_SIZE 9
 groupshared float4 fftGroupBuffer[2][SIZE];
 //蝶形运算 为FFT进行准备
 void ButterFlyValues(uint step, uint index, out uint2 index2, out float2 twiddle)
@@ -335,17 +336,17 @@ float4 IFFT(uint threadIndex, float4 input)
 [numthreads(SIZE, 1, 1)]
 void CS_HorizontalIFFT(uint3 id : SV_DISPATCHTHREADID)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int sliceIndex = 0; sliceIndex < SPECTRUM_SLICE_COUNT; sliceIndex++)
     {
-        FourierTexture[uint3(id.xy, i)] = IFFT(id.x, FourierTexture[uint3(id.xy, i)]);
+        FourierTexture[uint3(id.xy, sliceIndex)] = IFFT(id.x, FourierTexture[uint3(id.xy, sliceIndex)]);
     }
 }
 [numthreads(SIZE, 1, 1)]
 void CS_VerticalIFFT(uint3 id : SV_DISPATCHTHREADID)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int sliceIndex = 0; sliceIndex < SPECTRUM_SLICE_COUNT; sliceIndex++)
     {
-        FourierTexture[uint3(id.yx, i)] = IFFT(id.x, FourierTexture[uint3(id.yx, i)]);
+        FourierTexture[uint3(id.yx, sliceIndex)] = IFFT(id.x, FourierTexture[uint3(id.yx, sliceIndex)]);
     }
 }
 //IFFT输出的数据往往是乱序的，需要通过Permute函数重新排列
@@ -357,29 +358,33 @@ float4 Permute(float4 data, float3 id)
 [numthreads(8, 8, 1)]
 void CS_AssembleTextures(uint3 id : SV_DISPATCHTHREADID)
 {
-    float4 htimeDisplacement = Permute(FourierTexture[uint3(id.xy, 0)], id);
-    float4 htimeSlope = Permute(FourierTexture[uint3(id.xy, 1)], id);
+    for (uint layerIndex = 0; layerIndex < SPECTRUM_LAYER_COUNT; layerIndex++)
+    {
+        uint baseSlice = layerIndex * SPECTRUM_SLICES_PER_LAYER;
+        float4 htimeDisplacement = Permute(FourierTexture[uint3(id.xy, baseSlice)], id);
+        float4 htimeSlope = Permute(FourierTexture[uint3(id.xy, baseSlice + 1)], id);
 
-    float2 DxDy = htimeDisplacement.rg;
-    float2 DyDxz = htimeDisplacement.ba;
-    float2 DyxDyz = htimeSlope.rg;
-    float2 DxxDzz = htimeSlope.ba;
+        float2 DxDy = htimeDisplacement.rg;
+        float2 DyDxz = htimeDisplacement.ba;
+        float2 DyxDyz = htimeSlope.rg;
+        float2 DxxDzz = htimeSlope.ba;
+    
+        float jacobian = (1.0f + _WaveSharp.x * DxxDzz.x) * (1.0f + _WaveSharp.y * DxxDzz.y) - _WaveSharp.x * _WaveSharp.y * DyDxz.y * DyDxz.y;
+        jacobian = pow(saturate(jacobian), _FoamPower);
 
-    float jacobian = (1.0f + _WaveSharp.x * DxxDzz.x) * (1.0f + _WaveSharp.y * DxxDzz.y) - _WaveSharp.x * _WaveSharp.y * DyDxz.y * DyDxz.y;
-    jacobian = pow(saturate(jacobian), _FoamPower);
+        float3 finalDisplace = float3(DxDy.x * _WaveSharp.x, DyDxz.x, DxDy.y * _WaveSharp.y);
+        float2 finalSlope = DyxDyz.xy / (1 + abs(DxxDzz * _WaveSharp));
 
-    float3 finalDisplace = float3(DxDy.x * _WaveSharp.x, DyDxz.x, DxDy.y * _WaveSharp.y);
-    float2 finalSlope = DyxDyz.xy / (1 + abs(DxxDzz * _WaveSharp));
+        float foam = _DisplacementTexture[uint3(id.xy, layerIndex)].a;
+        foam *= exp(-_FoamDecayRate);
+        foam = saturate(foam);
 
-    float foam = _DisplacementTexture[uint3(id.xy, 0)].a;
-    foam *= exp(-_FoamDecayRate);
-    foam = saturate(foam);
+        float biasedJacobian = max(0.0f, -(jacobian - _FoamBias));
 
-    float biasedJacobian = max(0.0f, -(jacobian - _FoamBias));
-
-    if (biasedJacobian > 0)
-        foam += _FoamAdd * biasedJacobian;
-    foam = saturate(foam);
-    _DisplacementTexture[uint3(id.xy, 0)] = float4(finalDisplace, foam);
-    _SlopeTexture[uint3(id.xy, 0)] = float4(finalSlope, 0.0, 1.0);
+        if (biasedJacobian > 0)
+            foam += _FoamAdd * biasedJacobian;
+        foam = saturate(foam);
+        _DisplacementTexture[uint3(id.xy, layerIndex)] = float4(finalDisplace, foam);
+        _SlopeTexture[uint3(id.xy, layerIndex)] = float4(finalSlope, 0.0, 1.0);
+    }
 }

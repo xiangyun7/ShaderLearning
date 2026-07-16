@@ -519,7 +519,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eeef368b834e9444084302397f071614, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  size: 1000
+  size: 10000
   patchResolution: 128
   tessEdgeLength: 18
   boundsHeight: 80
@@ -541,98 +541,102 @@ MonoBehaviour:
   _DisplacementTexture: {fileID: 0}
   _SlopeTexture: {fileID: 0}
   fftOceanCompute: {fileID: 7200000, guid: 1953e29fe4b8493469db410421c4bf93, type: 3}
-  resolution: 1024
+  resolution: 512
   gravity: 9.81
-  depth: 5
+  depth: 10
   seed: 1
   _RepeatTime: 200
-  Speed: 0.5
-  WaveSharp: {x: 0.4, y: 0.4}
-  FoamBias: 0.2
-  FoamPower: 1.5
-  FoamAdd: 0.1
-  FoamDecayRate: 0.05
+  Speed: 1
+  WaveSharp: {x: 0.65, y: 0.65}
+  FoamBias: 0.77
+  FoamPower: 2.5
+  FoamAdd: 0.4
+  FoamDecayRate: 0.08
   spectrumLayers:
   - enabled: 1
-    lengthScale: 200
-    primarySpectrum:
-      scale: 2
-      windSpeed: 20
-      windDirection: 0
-      fetch: 1000
-      spreadBlend: 1
-      swell: 1
-      shortWavesFade: 1
-      peakEnhancement: 3.3
-    secondarySpectrum:
-      scale: 0.2
-      windSpeed: 20
-      windDirection: 90
-      fetch: 1000
-      spreadBlend: 1
-      swell: 1
-      shortWavesFade: 1
-      peakEnhancement: 5
-  - enabled: 1
     lengthScale: 1000
+    foamStrength: 0.15
     primarySpectrum:
-      scale: 1
-      windSpeed: 10
-      windDirection: 0
-      fetch: 1000
-      spreadBlend: 1
-      swell: 1
+      scale: 0.2
+      windSpeed: 15
+      windDirection: 130
+      fetch: 250000
+      spreadBlend: 0.6
+      swell: 0.8
       shortWavesFade: 1
       peakEnhancement: 1
     secondarySpectrum:
-      scale: 0
-      windSpeed: 0
-      windDirection: 0
-      fetch: 0
-      spreadBlend: 0
-      swell: 0
-      shortWavesFade: 0
-      peakEnhancement: 0
+      scale: 0.05
+      windSpeed: 10
+      windDirection: 60
+      fetch: 250000
+      spreadBlend: 0.6
+      swell: 0.9
+      shortWavesFade: 1
+      peakEnhancement: 1
   - enabled: 1
-    lengthScale: 100
+    lengthScale: 300
+    foamStrength: 0.5
     primarySpectrum:
-      scale: 2
-      windSpeed: 30
-      windDirection: 0
-      fetch: 100
+      scale: 0.05
+      windSpeed: 20
+      windDirection: 60
+      fetch: 12000
       spreadBlend: 1
       swell: 1
       shortWavesFade: 1
-      peakEnhancement: 5
+      peakEnhancement: 2.5
     secondarySpectrum:
-      scale: 0
-      windSpeed: 0
-      windDirection: 0
-      fetch: 0
-      spreadBlend: 0
-      swell: 0
-      shortWavesFade: 0
-      peakEnhancement: 0
+      scale: 0.05
+      windSpeed: 10
+      windDirection: 240
+      fetch: 12000
+      spreadBlend: 0.98
+      swell: 0.9
+      shortWavesFade: 0.4
+      peakEnhancement: 2.5
   - enabled: 1
-    lengthScale: 10
+    lengthScale: 80
+    foamStrength: 0.7
     primarySpectrum:
-      scale: 2
-      windSpeed: 50
+      scale: 0.1
+      windSpeed: 10
       windDirection: 0
-      fetch: 600
+      fetch: 40000
       spreadBlend: 1
-      swell: 1
+      swell: 0.25
       shortWavesFade: 1
-      peakEnhancement: 3.3
+      peakEnhancement: 1.8
     secondarySpectrum:
-      scale: 0
-      windSpeed: 0
-      windDirection: 0
-      fetch: 0
-      spreadBlend: 0
-      swell: 0
+      scale: 0.05
+      windSpeed: 5
+      windDirection: 120
+      fetch: 40000
+      spreadBlend: 1
+      swell: 0.25
+      shortWavesFade: 1
+      peakEnhancement: 1.8
+  - enabled: 1
+    lengthScale: 20
+    foamStrength: 1.5
+    primarySpectrum:
+      scale: 0.025
+      windSpeed: 8
+      windDirection: 90
+      fetch: 1000
+      spreadBlend: 0.9
+      swell: 0.05
       shortWavesFade: 0
-      peakEnhancement: 0
+      peakEnhancement: 1.2
+    secondarySpectrum:
+      scale: 0.001
+      windSpeed: 10
+      windDirection: 60
+      fetch: 10000
+      spreadBlend: 0.9
+      swell: 0.05
+      shortWavesFade: 0
+      peakEnhancement: 1.2
   waterMaterial: {fileID: 2100000, guid: 2787997e150f3f14d821521ae9a4d053, type: 2}
   _ScatterColor: {r: 0, g: 0.51670027, b: 1, a: 1}
   _ScatterPeakColor: {r: 0.19182372, g: 0.7424494, b: 1, a: 1}
@@ -1387,44 +1391,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 133525547}
   m_Mesh: {fileID: 1229162355}
---- !u!84 &174576856
-RenderTexture:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: _LightCameraDepthTexture
-  m_ImageContentsHash:
-    serializedVersion: 2
-    Hash: 00000000000000000000000000000000
-  m_ForcedFallbackFormat: 4
-  m_DownscaleFallback: 0
-  m_IsAlphaChannelOptional: 0
-  serializedVersion: 5
-  m_Width: 4096
-  m_Height: 4096
-  m_AntiAliasing: 1
-  m_MipCount: -1
-  m_DepthStencilFormat: 94
-  m_ColorFormat: 0
-  m_MipMap: 0
-  m_GenerateMips: 1
-  m_SRGB: 0
-  m_UseDynamicScale: 0
-  m_BindMS: 0
-  m_EnableCompatibleFormat: 1
-  m_EnableRandomWrite: 0
-  m_TextureSettings:
-    serializedVersion: 2
-    m_FilterMode: 0
-    m_Aniso: 1
-    m_MipBias: 0
-    m_WrapU: 1
-    m_WrapV: 1
-    m_WrapW: 1
-  m_Dimension: 2
-  m_VolumeDepth: 1
-  m_ShadowSamplingMode: 2
 --- !u!43 &213985338
 Mesh:
   m_ObjectHideFlags: 0
@@ -10042,7 +10008,7 @@ Camera:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RenderingPath: -1
-  m_TargetTexture: {fileID: 174576856}
+  m_TargetTexture: {fileID: 1993577391}
   m_TargetDisplay: 1
   m_TargetEye: 3
   m_HDR: 1
@@ -11892,6 +11858,44 @@ Mesh:
     offset: 0
     size: 0
     path: 
+--- !u!84 &1993577391
+RenderTexture:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: _LightCameraDepthTexture
+  m_ImageContentsHash:
+    serializedVersion: 2
+    Hash: 00000000000000000000000000000000
+  m_ForcedFallbackFormat: 4
+  m_DownscaleFallback: 0
+  m_IsAlphaChannelOptional: 0
+  serializedVersion: 5
+  m_Width: 4096
+  m_Height: 4096
+  m_AntiAliasing: 1
+  m_MipCount: -1
+  m_DepthStencilFormat: 94
+  m_ColorFormat: 0
+  m_MipMap: 0
+  m_GenerateMips: 1
+  m_SRGB: 0
+  m_UseDynamicScale: 0
+  m_BindMS: 0
+  m_EnableCompatibleFormat: 1
+  m_EnableRandomWrite: 0
+  m_TextureSettings:
+    serializedVersion: 2
+    m_FilterMode: 0
+    m_Aniso: 1
+    m_MipBias: 0
+    m_WrapU: 1
+    m_WrapV: 1
+    m_WrapW: 1
+  m_Dimension: 2
+  m_VolumeDepth: 1
+  m_ShadowSamplingMode: 2
 --- !u!1 &1996127562
 GameObject:
   m_ObjectHideFlags: 0

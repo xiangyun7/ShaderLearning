@@ -3,6 +3,7 @@ Shader "Tutorial/Water"
     Properties
     {
         _DebugMode ("Debug Mode", Range(0, 11)) = 0
+        
         [Header(Depth)]
         _DepthLevel ("Depth Level", Range(0, 5)) = 1
         _DepthPower ("Depth Power", Range(0.1, 5)) = 1
@@ -12,7 +13,9 @@ Shader "Tutorial/Water"
         _DeepColor ("Deep Color", Color) = (0.02, 0.12, 0.25, 1)
 
         [Header(FFT Ocean)]
-        _OceanLengthScale ("Ocean Length Scale", Float) = 200
+        _SpectrumDebugLayer ("Spectrum Debug Layer", Range(-1, 3)) = -1
+        _OceanLengthScales ("Ocean Length Scales", Vector) = (200, 1000, 100, 10)
+        _OceanFoamStrengths ("Ocean Foam Strengths", Vector) = (1, 1, 1, 1)
 
         [Header(Tess)]
         _TessDistancePower ("Tess Distance Power", Range(1, 3.0)) = 1.8
@@ -64,7 +67,9 @@ Shader "Tutorial/Water"
             TEXTURE2D_ARRAY(_SlopeTexture);
             SAMPLER(sampler_SlopeTexture);
 
-            float _OceanLengthScale;
+            float4 _OceanLengthScales;
+            float4 _OceanFoamStrengths;
+            int _SpectrumDebugLayer;
             // //高光参数
             // float _SpecularStrength,_SpecularPower,_SunGlintPower,_SunGlintStrength;
             //散射参数
@@ -124,7 +129,7 @@ Shader "Tutorial/Water"
                 float4 positionHCS : SV_POSITION;
                 float4 screenPos : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
-                float2 oceanUV : TEXCOORD2;
+                float2 oceanXZ : TEXCOORD2;
                 float clipDepth : TEXCOORD3;
             };
 
@@ -183,7 +188,52 @@ Shader "Tutorial/Water"
 
                 return f;
             }
-            
+            float2 GetSpectrumUV(float2 worldXZ, int layerIndex)
+            {
+                return frac(worldXZ / max(_OceanLengthScales[layerIndex], 0.001));
+            }
+
+            float4 SampleOceanDisplacement(float2 worldXZ)
+            {
+                if (_SpectrumDebugLayer >= 0)
+                {
+                    int layerIndex = clamp(_SpectrumDebugLayer, 0, 3);
+                    float4 displacement = SAMPLE_TEXTURE2D_ARRAY_LOD(_DisplacementTexture, sampler_DisplacementTexture, GetSpectrumUV(worldXZ, layerIndex), layerIndex, 0);
+                    displacement.a *= _OceanFoamStrengths[layerIndex];
+                    return displacement;
+                }
+
+                float4 displacement = 0.0;
+
+                [unroll]
+                for (int layerIndex = 0; layerIndex < 4; layerIndex++)
+                {
+                    float4 layerDisplacement = SAMPLE_TEXTURE2D_ARRAY_LOD(_DisplacementTexture, sampler_DisplacementTexture, GetSpectrumUV(worldXZ, layerIndex), layerIndex, 0);
+                    layerDisplacement.a *= _OceanFoamStrengths[layerIndex];
+                    displacement += layerDisplacement;
+                }
+
+                return displacement;
+            }
+
+            float2 SampleOceanSlope(float2 worldXZ)
+            {
+                if (_SpectrumDebugLayer >= 0)
+                {
+                    int layerIndex = clamp(_SpectrumDebugLayer, 0, 3);
+                    return SAMPLE_TEXTURE2D_ARRAY_LOD(_SlopeTexture, sampler_SlopeTexture, GetSpectrumUV(worldXZ, layerIndex), layerIndex, 0).rg;
+                }
+
+                float2 slope = 0.0;
+
+                [unroll]
+                for (int layerIndex = 0; layerIndex < 4; layerIndex++)
+                {
+                    slope += SAMPLE_TEXTURE2D_ARRAY_LOD(_SlopeTexture, sampler_SlopeTexture, GetSpectrumUV(worldXZ, layerIndex), layerIndex, 0).rg;
+                }
+
+                return slope;
+            }
 
             //处理顶点着色器到曲面细分着色器到顶点着色器的数据流类型
             v2f VertexAfterTess(appdata input)
@@ -198,22 +248,16 @@ Shader "Tutorial/Water"
                 clipDepth = saturate(clipDepth);
                 float distanceFade = pow(clipDepth, _DistanceFadeDepthAttenuation);
 
-                float2 oceanUV = positionWS.xz / max(_OceanLengthScale, 0.001);
 
-                float4 displace = SAMPLE_TEXTURE2D_ARRAY_LOD(
-                    _DisplacementTexture,
-                    sampler_DisplacementTexture,
-                    oceanUV,
-                    0,
-                    0
-                );
-
+                float2 oceanXZ = positionWS.xz;
+                float4 displace = SampleOceanDisplacement(oceanXZ);
                 positionWS += displace.rgb * distanceFade;
+
 
                 output.positionWS = positionWS;
                 output.positionHCS = TransformWorldToHClip(positionWS);
                 output.screenPos = ComputeScreenPos(output.positionHCS);
-                output.oceanUV = oceanUV;
+                output.oceanXZ = oceanXZ;
                 output.clipDepth = clipDepth;
                 return output;
             }
@@ -302,12 +346,7 @@ Shader "Tutorial/Water"
 
 
                 //计算法线
-                float2 slope = SAMPLE_TEXTURE2D_ARRAY(
-                    _SlopeTexture,
-                    sampler_SlopeTexture,
-                    input.oceanUV,
-                    0
-                ).rg;
+                float2 slope = SampleOceanSlope(input.oceanXZ);
                 float3 normalWS = normalize(float3(-slope.x,1.0,-slope.y));//微观法线
                 float3 macroNormal = float3(0.0, 1.0, 0.0);//宏观法线
                 normalWS = normalize(lerp(
@@ -352,12 +391,7 @@ Shader "Tutorial/Water"
 
                 
                 //读取泡沫
-                float4 displacement = SAMPLE_TEXTURE2D_ARRAY(
-                    _DisplacementTexture,
-                    sampler_DisplacementTexture,
-                    input.oceanUV,
-                    0
-                );
+                float4 displacement = SampleOceanDisplacement(input.oceanXZ);
                 float rawFoam = saturate(displacement.a);
                 float foam = smoothstep(0.25, 0.75, rawFoam);
                 foam *= distanceFade;

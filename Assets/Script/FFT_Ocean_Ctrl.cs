@@ -12,7 +12,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     public ComputeShader fftOceanCompute;
 
     //参数声明
-    public int resolution = 1024;
+    private bool spectrumDirty = true;
+    public int resolution = 512;
     private int threadGroupsX, threadGroupsY;
     public float gravity = 9.81f;
     public float depth = 10f;
@@ -24,6 +25,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private const int SpectrumLayerCount = 4;
     private const int JonswapPerLayer = 2;
     private const int JonswapParameterCount = SpectrumLayerCount * JonswapPerLayer;
+    private const int SpectrumSlicesPerLayer = 2;
+    private const int SpectrumTextureSliceCount = SpectrumLayerCount * SpectrumSlicesPerLayer;
     //波浪泡沫参数声明
     public Vector2 WaveSharp = new Vector2(0.4f, 0.4f);
     [Range(-1.0f, 1.0f)]
@@ -56,6 +59,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     {
         public bool enabled;
         [Min(1)] public float lengthScale;
+        [Range(0, 2)] public float foamStrength;
         public JONSWAP_DisplaySettings primarySpectrum;
         public JONSWAP_DisplaySettings secondarySpectrum;
     }
@@ -97,12 +101,17 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     public float _Roughness = 0.1f;
     private static readonly int DisplacementTextureID = Shader.PropertyToID("_DisplacementTexture");
     private static readonly int SlopeTextureID = Shader.PropertyToID("_SlopeTexture");
-    private static readonly int OceanLengthScaleID = Shader.PropertyToID("_OceanLengthScale");
+    private static readonly int OceanLengthScalesID = Shader.PropertyToID("_OceanLengthScales");
+    private static readonly int OceanFoamStrengthsID = Shader.PropertyToID("_OceanFoamStrengths");
 
 
 
     private void Reset()
     {
+    }
+    private void OnValidate()
+    {
+        spectrumDirty = true;
     }
     void OnEnable()
     {
@@ -128,26 +137,28 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         CS_AssembleTextures = fftOceanCompute.FindKernel("CS_AssembleTextures");
 
         pp_Texture = CreateRenderTexArray(resolution, resolution, SpectrumLayerCount, RenderTextureFormat.ARGBFloat, false);
-        UpdateTexture = CreateRenderTexArray(resolution, resolution,2, RenderTextureFormat.ARGBFloat, false);
-        FourierTexture = CreateRenderTexArray(resolution, resolution,2, RenderTextureFormat.ARGBFloat, false);
-        _DisplacementTexture = CreateRenderTexArray(resolution, resolution,1, RenderTextureFormat.ARGBFloat, false);
-        _SlopeTexture = CreateRenderTexArray(resolution, resolution,1, RenderTextureFormat.ARGBFloat, false);
-        
+        UpdateTexture = CreateRenderTexArray(resolution, resolution, SpectrumTextureSliceCount, RenderTextureFormat.ARGBFloat, false);
+        FourierTexture = CreateRenderTexArray(resolution, resolution, SpectrumTextureSliceCount, RenderTextureFormat.ARGBFloat, false);
+        _DisplacementTexture = CreateRenderTexArray(resolution, resolution, SpectrumLayerCount, RenderTextureFormat.ARGBFloat, false);
+        _SlopeTexture = CreateRenderTexArray(resolution, resolution, SpectrumLayerCount, RenderTextureFormat.ARGBFloat, false);
+
         SetCompParam();
         CreateJonswapBuffer();
-        UploadJonswapBuffer();
+        RebuildInitialSpectrum();
         BindWaterMaterialValue();
-        
+
 
     }
 
     void Update()
     {
-        if (waterMaterial != null)
-        {
-            waterMaterial.SetFloat(OceanLengthScaleID, spectrumLayers[0].lengthScale);
-        }
         SetCompParam();
+
+        if (spectrumDirty)
+        {
+            RebuildInitialSpectrum();
+        }
+
         BindWaterMaterialValue();
         RunKernel();
     }
@@ -183,7 +194,10 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
         waterMaterial.SetTexture(DisplacementTextureID, _DisplacementTexture);
         waterMaterial.SetTexture(SlopeTextureID, _SlopeTexture);
-        waterMaterial.SetFloat(OceanLengthScaleID, spectrumLayers[0].lengthScale);
+        Vector4 lengthScales = new Vector4(spectrumLayers[0].lengthScale, spectrumLayers[1].lengthScale, spectrumLayers[2].lengthScale, spectrumLayers[3].lengthScale);
+        waterMaterial.SetVector(OceanLengthScalesID, lengthScales);
+        Vector4 foamStrengths = new Vector4(spectrumLayers[0].foamStrength, spectrumLayers[1].foamStrength, spectrumLayers[2].foamStrength, spectrumLayers[3].foamStrength);
+        waterMaterial.SetVector(OceanFoamStrengthsID, foamStrengths);
         //waterMaterial.SetFloat("_SpecularStrength", _SpecularStrength);
         //waterMaterial.SetFloat("_SunGlintStrength", _SunGlintStrength);
         //waterMaterial.SetFloat("_SpecularPower", _SpecularPower);
@@ -198,6 +212,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         waterMaterial.SetColor("_ScatterPeakColor", _ScatterPeakColor);
         waterMaterial.SetColor("_ScatterColor", _ScatterColor);
         waterMaterial.SetColor("_FoamColor", _FoamColor);
+
     }
     RenderTexture CreateRenderTexArray(int width, int height, int depth, RenderTextureFormat format, bool mips)
     {
@@ -217,7 +232,6 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     void SetCompParam()
     {
         fftOceanCompute.SetInt("_Resolution", resolution);
-        fftOceanCompute.SetFloat("_LengthScale", spectrumLayers[0].lengthScale);
         Vector4 lengthScales = new Vector4(spectrumLayers[0].lengthScale, spectrumLayers[1].lengthScale, spectrumLayers[2].lengthScale, spectrumLayers[3].lengthScale);
         fftOceanCompute.SetVector("_LengthScales", lengthScales);
         fftOceanCompute.SetFloat("_Gravity", gravity);
@@ -298,14 +312,21 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         JonswapBuffer.SetData(computeSpectrums);
         fftOceanCompute.SetBuffer(CS_Pinpu, "_JonswapParameters", JonswapBuffer);
     }
-    private void RunKernel()
+    private void RebuildInitialSpectrum()
     {
-        //初始化频谱
+        UploadJonswapBuffer();
+
         fftOceanCompute.SetTexture(CS_Pinpu, "pp_Texture", pp_Texture);
         fftOceanCompute.Dispatch(CS_Pinpu, threadGroupsX, threadGroupsY, 1);
-        //共轭频谱
+
         fftOceanCompute.SetTexture(CS_GongEPinpu, "pp_Texture", pp_Texture);
         fftOceanCompute.Dispatch(CS_GongEPinpu, threadGroupsX, threadGroupsY, 1);
+
+        spectrumDirty = false;
+    }
+    private void RunKernel()
+    {
+        
         //更新频谱
         fftOceanCompute.SetTexture(CS_Update, "pp_Texture", pp_Texture);
         fftOceanCompute.SetTexture(CS_Update, "UpdateTexture", UpdateTexture);
