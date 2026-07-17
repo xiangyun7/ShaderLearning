@@ -52,7 +52,7 @@ MonoBehaviour:
     cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
     cloudScale: {x: 2, y: 2, z: 2}
     noiseTileSize: 500
-    densityThreshold: 0.23
+    densityThreshold: 0.2
     densityContrast: 4
     detailStrength: 20
     edgeFadeDistance: 500
