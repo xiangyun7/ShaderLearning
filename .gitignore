@@ -73,3 +73,12 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+Assets/Texture/wave/T_SimpleWaveProfile_Inverse.png.meta
+Assets/Texture/wave.meta
+Assets/Texture/wave/T_DefaultWaveProfile_Forard.png
+Assets/Texture/wave/T_DefaultWaveProfile_Forard.png.meta
+Assets/Texture/wave/T_DefaultWaveProfile_Inverse.png
+Assets/Texture/wave/T_DefaultWaveProfile_Inverse.png.meta
+Assets/Texture/wave/T_SimpleWaveProfile_Forard.png
+Assets/Texture/wave/T_SimpleWaveProfile_Forard.png.meta
+Assets/Texture/wave/T_SimpleWaveProfile_Inverse.png
