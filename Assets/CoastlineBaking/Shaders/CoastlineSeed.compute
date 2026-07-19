@@ -1,0 +1,98 @@
+#pragma kernel ExtractSeeds
+
+Texture2D<float> _GroundHeightMap;
+Texture2D<float> _LandMask;
+RWTexture2D<float2> _SeedMap;
+
+int2 _Resolution;
+float _WaterLevel;
+float2 _WorldSizeXZ;
+
+void ConsiderNeighbor(
+    int2 pixel,
+    int2 neighbor,
+    float pixelHeight,
+    bool pixelIsLand,
+    float2 pixelUV,
+    inout float bestDistanceSq,
+    inout float2 bestSeedUV)
+{
+    if (any(neighbor < int2(0, 0)) ||
+        any(neighbor >= _Resolution))
+    {
+        return;
+    }
+
+    float neighborHeight =
+        _GroundHeightMap.Load(int3(neighbor, 0));
+
+    bool neighborIsLand =
+        _LandMask.Load(int3(neighbor, 0)) > 0.5;
+
+    if (neighborIsLand == pixelIsLand)
+        return;
+
+    float denominator = neighborHeight - pixelHeight;
+
+    float t = abs(denominator) > 1e-6
+        ? saturate((_WaterLevel - pixelHeight) / denominator)
+        : 0.5;
+
+    float2 neighborUV =
+        (float2(neighbor) + 0.5) / float2(_Resolution);
+
+    float2 candidateUV = lerp(pixelUV, neighborUV, t);
+    float2 deltaWS =
+        (candidateUV - pixelUV) * _WorldSizeXZ;
+
+    float distanceSq = dot(deltaWS, deltaWS);
+
+    if (distanceSq < bestDistanceSq)
+    {
+        bestDistanceSq = distanceSq;
+        bestSeedUV = candidateUV;
+    }
+}
+
+[numthreads(8, 8, 1)]
+void ExtractSeeds(uint3 dispatchID : SV_DispatchThreadID)
+{
+    int2 pixel = int2(dispatchID.xy);
+
+    if (any(pixel >= _Resolution))
+        return;
+
+    float pixelHeight =
+        _GroundHeightMap.Load(int3(pixel, 0));
+
+    bool pixelIsLand =
+        _LandMask.Load(int3(pixel, 0)) > 0.5;
+
+    float2 pixelUV =
+        (float2(pixel) + 0.5) / float2(_Resolution);
+
+    float bestDistanceSq = 3.402823e+38;
+    float2 bestSeedUV = float2(-1.0, -1.0);
+
+    ConsiderNeighbor(
+        pixel, pixel + int2(-1, 0),
+        pixelHeight, pixelIsLand, pixelUV,
+        bestDistanceSq, bestSeedUV);
+
+    ConsiderNeighbor(
+        pixel, pixel + int2(1, 0),
+        pixelHeight, pixelIsLand, pixelUV,
+        bestDistanceSq, bestSeedUV);
+
+    ConsiderNeighbor(
+        pixel, pixel + int2(0, -1),
+        pixelHeight, pixelIsLand, pixelUV,
+        bestDistanceSq, bestSeedUV);
+
+    ConsiderNeighbor(
+        pixel, pixel + int2(0, 1),
+        pixelHeight, pixelIsLand, pixelUV,
+        bestDistanceSq, bestSeedUV);
+
+    _SeedMap[pixel] = bestSeedUV;
+}

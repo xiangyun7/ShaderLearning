@@ -1,0 +1,87 @@
+﻿#pragma kernel BuildCoastlineMap
+
+Texture2D<float2> _NearestSeedMap;
+Texture2D<float> _LandMask;
+RWTexture2D<float4> _CoastlineMap;
+
+int2 _Resolution;
+float2 _WorldSizeXZ;
+float _MaxCoastDistance;
+
+[numthreads(8, 8, 1)]
+void BuildCoastlineMap(uint3 dispatchID : SV_DispatchThreadID)
+{
+    int2 pixel = int2(dispatchID.xy);
+
+    if (any(pixel >= _Resolution))
+        return;
+
+    float2 pixelUV =
+        (float2(pixel) + 0.5) / float2(_Resolution);
+
+    float2 seedUV =
+        _NearestSeedMap.Load(int3(pixel, 0));
+
+    float4 neutralValue =
+        float4(0.0, 0.5, 0.5, 0.0);
+
+    bool validSeed =
+        all(seedUV >= 0.0) && all(seedUV <= 1.0);
+
+    if (!validSeed)
+    {
+        _CoastlineMap[pixel] = neutralValue;
+        return;
+    }
+
+    float2 deltaWS =
+        (seedUV - pixelUV) * _WorldSizeXZ;
+
+    float unsignedDistance = length(deltaWS);
+    bool isLand =
+        _LandMask.Load(int3(pixel, 0)) > 0.5;
+
+    if (unsignedDistance >= _MaxCoastDistance)
+    {
+        // Keep the encoded SDF saturated outside the active band:
+        // far water = 0, far land = 1.
+        _CoastlineMap[pixel] = float4(
+            isLand ? 1.0 : 0.0,
+            0.5,
+            0.5,
+            0.0);
+        return;
+    }
+
+    float signValue = isLand ? 1.0 : -1.0;
+
+    // R: encoded signed distance. Water is [0, 0.5), the coastline
+    // is 0.5, and land is (0.5, 1].
+    float signedDistance =
+        signValue *
+        saturate(unsignedDistance / _MaxCoastDistance);
+
+    float encodedDistance =
+        signedDistance * 0.5 + 0.5;
+
+    // GB：当前像素指向最近海岸的世界 XZ 方向。
+    float2 directionWS = unsignedDistance > 1e-5
+        ? deltaWS / unsignedDistance
+        : float2(0.0, 0.0);
+
+    float2 encodedDirection =
+        directionWS * 0.5 + 0.5;
+
+    // A: procedural Wave Scale. Waves grow continuously from the
+    // outer edge of the coast band and reach full scale at the shore.
+    float waveScale =
+        1.0 - smoothstep(
+            0.0,
+            _MaxCoastDistance,
+            unsignedDistance);
+
+    _CoastlineMap[pixel] = float4(
+        encodedDistance,
+        encodedDirection,
+        waveScale);
+}

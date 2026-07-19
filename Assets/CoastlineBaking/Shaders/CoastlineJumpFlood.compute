@@ -1,0 +1,73 @@
+﻿#pragma kernel JumpFlood
+
+Texture2D<float2> _InputSeeds;
+RWTexture2D<float2> _OutputSeeds;
+
+int2 _Resolution;
+int _Step;
+float2 _WorldSizeXZ;
+
+bool IsValidSeed(float2 seedUV)
+{
+    return all(seedUV >= 0.0) && all(seedUV <= 1.0);
+}
+
+float DistanceToSeedSq(float2 seedUV, float2 pixelUV)
+{
+    float2 deltaWS =
+        (seedUV - pixelUV) * _WorldSizeXZ;
+
+    return dot(deltaWS, deltaWS);
+}
+
+[numthreads(8, 8, 1)]
+void JumpFlood(uint3 dispatchID : SV_DispatchThreadID)
+{
+    int2 pixel = int2(dispatchID.xy);
+
+    if (any(pixel >= _Resolution))
+        return;
+
+    float2 pixelUV =
+        (float2(pixel) + 0.5) / float2(_Resolution);
+
+    float2 bestSeedUV =
+        _InputSeeds.Load(int3(pixel, 0));
+
+    float bestDistanceSq = IsValidSeed(bestSeedUV)
+        ? DistanceToSeedSq(bestSeedUV, pixelUV)
+        : 3.402823e+38;
+
+    // 检查当前位置周围的九个采样点。
+    for (int offsetY = -1; offsetY <= 1; offsetY++)
+    {
+        for (int offsetX = -1; offsetX <= 1; offsetX++)
+        {
+            int2 samplePixel =
+                pixel + int2(offsetX, offsetY) * _Step;
+
+            if (any(samplePixel < int2(0, 0)) ||
+                any(samplePixel >= _Resolution))
+            {
+                continue;
+            }
+
+            float2 candidateSeedUV =
+                _InputSeeds.Load(int3(samplePixel, 0));
+
+            if (!IsValidSeed(candidateSeedUV))
+                continue;
+
+            float candidateDistanceSq =
+                DistanceToSeedSq(candidateSeedUV, pixelUV);
+
+            if (candidateDistanceSq < bestDistanceSq)
+            {
+                bestDistanceSq = candidateDistanceSq;
+                bestSeedUV = candidateSeedUV;
+            }
+        }
+    }
+
+    _OutputSeeds[pixel] = bestSeedUV;
+}
