@@ -2,7 +2,7 @@ Shader "Tutorial/Water"
 {
     Properties
     {
-        _DebugMode ("Debug Mode", Range(0, 11)) = 0
+        _DebugMode ("Debug Mode", Range(0, 20)) = 0
         
         [Header(Depth)]
         _DepthLevel ("Depth Level", Range(0, 5)) = 1
@@ -24,6 +24,9 @@ Shader "Tutorial/Water"
         _TessNearDistance ("Tess Near Distance", Float) = 20
         _TessFarDistance ("Tess Far Distance", Float) = 120
         _TessFarMultiplier ("Tess Far Multiplier", Range(0.01, 1)) = 0.15
+        _CoastTessDistance ("Coast Tess Distance", Float) = 12
+        _CoastTessFade ("Coast Tess Fade", Float) = 8
+        _CoastTessFactor ("Coast Tess Factor", Range(4, 128)) = 128
 
         [Header(Visual Depth Fade)]
         _DistanceFadeDepthAttenuation ("Distance Depth Attenuation", Range(0.1, 20)) = 4
@@ -31,6 +34,37 @@ Shader "Tutorial/Water"
         // [Header(Sun Glint)]
         // _SunGlintFadeStart ("Sun Glint Fade Start", Range(0, 1)) = 0.15
         // _SunGlintFadeEnd ("Sun Glint Fade End", Range(0, 1)) = 0.45
+
+        [Header(Coastline)]
+        [HideInInspector] _CoastlineMap ("Coastline Map", 2D) = "black" {}
+        [HideInInspector] _GroundHeightMap ("Ground Height Map", 2D) = "black" {}
+        [HideInInspector] _CoastMapMinSize ("Coast Map Min Size", Vector) = (0, 0, 1, 1)
+        [HideInInspector] _MaxCoastDistance ("Max Coast Distance", Float) = 60
+        [HideInInspector] _GroundHeightDecodeRange ("Ground Height Decode Range", Vector) = (0, 1, 0, 0)
+        [HideInInspector] _WaterLevel ("Water Level", Float) = 0
+        [HideInInspector] _FFTBlendStart ("FFT Blend Start", Float) = 10
+        [HideInInspector] _FFTBlendEnd ("FFT Blend End", Float) = 55
+
+        [Header(Shoreline Wave)]
+        _WaveProfileMap ("Wave Profile Map", 2D) = "black" {}
+        _WaveProfileDecode ("Wave Profile Decode", Vector) = (-0.330324, 0, 0.470531, 0.124962)
+        _WaveProfileWidth ("Wave Profile Width", Float) = 5
+        _WaveProfileDistance ("Wave Profile Distance", Float) = 2.25
+        _WaveProfileSpeed ("Wave Profile Speed", Float) = 0.9
+        _WaveProfileAnimationSpeed ("Wave Profile Animation Speed", Float) = 0.75
+        _SmoothNoiseMap ("Smooth Noise Map", 2D) = "gray" {}
+        _NoiseTime ("Wave Noise Time", Range(0, 2)) = 0
+        _NoiseScale ("Wave Noise Scale", Range(0, 2)) = 0
+
+        [Header(Shore Base Wave)]
+        _ShoreBaseWaveVolume ("Shore Base Wave Volume", 3D) = "white" {}
+        _ShoreBaseWaveWorldSize ("Shore Base Wave World Size", Float) = 80
+        _ShoreBaseWaveHeight ("Shore Base Wave Height", Float) = 0.5
+        _ShoreBaseWaveChoppiness ("Shore Base Wave Choppiness", Range(0, 1)) = 0.35
+        _ShoreBaseWaveSpeed ("Shore Base Wave Speed", Float) = 0.08
+        _ShoreBaseWaveNormalStrength ("Shore Base Wave Normal Strength", Float) = 1
+        _ShoreBaseWaveFoamStrength ("Shore Base Wave Foam Strength", Float) = 1
+
     }
 
     SubShader
@@ -57,6 +91,9 @@ Shader "Tutorial/Water"
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "ShorelineWave.hlsl"
+            #include "ShoreBaseWave.hlsl"
+
 
             TEXTURE2D(_PlanarReflectionTex);SAMPLER(sampler_PlanarReflectionTex);//反射相机纹理
             TEXTURE2D(_CameraDepthTexture);SAMPLER(sampler_CameraDepthTexture);//相机深度
@@ -89,6 +126,9 @@ Shader "Tutorial/Water"
             float _TessDistancePower,_TessMinFactor,_TessMaxFactor;
             float _TessNearDistance,_TessFarDistance;
             float _TessFarMultiplier;
+            float _CoastTessDistance;
+            float _CoastTessFade;
+            float _CoastTessFactor;
 
 
             float _SunGlintFadeStart, _SunGlintFadeEnd,_FarSunSpecularWidth;
@@ -104,6 +144,8 @@ Shader "Tutorial/Water"
             float _AmbientScatteringStrength;
             float _FogStartDistance;
             float _FogFullDensityDistance;
+
+
 
 
             struct TessellationFactors
@@ -159,6 +201,16 @@ Shader "Tutorial/Water"
             
 
             //细分函数
+            float CoastTessellationMask(float3 positionWS)
+            {
+                ShorelineData shoreline = EvaluateShorelineData(positionWS.xz);
+
+                float distanceToCoast = abs(shoreline.waterDistance);
+                float fadeEnd = _CoastTessDistance + max(_CoastTessFade, 0.001);
+                float coastMask = 1.0 - smoothstep(_CoastTessDistance, fadeEnd, distanceToCoast);
+
+                return coastMask * shoreline.insideMap;
+            }
             float TessellationHeuristic(float3 p0WS, float3 p1WS)
             {
                 float edgeLength = distance(p0WS, p1WS);
@@ -170,6 +222,15 @@ Shader "Tutorial/Water"
                 float lod01 = saturate((viewDistance - _TessNearDistance) / max(_TessFarDistance - _TessNearDistance, 0.001));
 
                 tess *= lerp(1.0, _TessFarMultiplier, lod01);
+
+                float coastMask0 = CoastTessellationMask(p0WS);
+                float coastMask1 = CoastTessellationMask(p1WS);
+                float coastMaskCenter = CoastTessellationMask(edgeCenter);
+
+                float coastMask = max(max(coastMask0, coastMask1), coastMaskCenter);
+                float coastTess = lerp(_TessMinFactor, _CoastTessFactor, coastMask);
+
+                tess = max(tess, coastTess);
 
                 return clamp(tess, _TessMinFactor, _TessMaxFactor);
             }
@@ -250,8 +311,24 @@ Shader "Tutorial/Water"
 
 
                 float2 oceanXZ = positionWS.xz;
-                float4 displace = SampleOceanDisplacement(oceanXZ);
-                positionWS += displace.rgb * distanceFade;
+                ShorelineData shoreline = EvaluateShorelineData(oceanXZ);
+                
+
+                float3 fftDisplacement = SampleOceanDisplacement(oceanXZ).rgb;//远洋位移
+                ShoreWaveProfile shoreProfile = SampleShoreWaveProfile(shoreline, oceanXZ);
+                float3 shoreDisplacement = ComputeShoreWaveDisplacement(shoreline, shoreProfile);//近岸位移
+
+                float3 scaledShoreDisplacement = shoreDisplacement * saturate(shoreline.waveScale);
+                float3 fadedFFTDisplacement = fftDisplacement * distanceFade;
+                float3 finalDisplacement = lerp(scaledShoreDisplacement, fadedFFTDisplacement, shoreline.fftWeight);
+                
+                if (_DebugMode == 20)
+                {
+                    ShoreBaseWaveDecoded shoreBaseWave = SampleShoreBaseWave(oceanXZ);
+                    finalDisplacement = shoreBaseWave.displacementWS;
+                }
+                
+                positionWS += finalDisplacement;
 
 
                 output.positionWS = positionWS;
@@ -343,10 +420,15 @@ Shader "Tutorial/Water"
                 //lod衰减
                 float clipDepth = saturate(input.clipDepth);
                 float distanceFade = pow(clipDepth, _DistanceFadeDepthAttenuation);
-
+                ShorelineData shoreline = EvaluateShorelineData(input.oceanXZ);
 
                 //计算法线
-                float2 slope = SampleOceanSlope(input.oceanXZ);
+                float2 slope = SampleOceanSlope(input.oceanXZ) * shoreline.fftWeight;
+                if (_DebugMode == 20)
+                {
+                    ShoreBaseWaveDecoded shoreBaseWave = SampleShoreBaseWave(input.oceanXZ);
+                    slope = shoreBaseWave.derivative * _ShoreBaseWaveNormalStrength;
+                }
                 float3 normalWS = normalize(float3(-slope.x,1.0,-slope.y));//微观法线
                 float3 macroNormal = float3(0.0, 1.0, 0.0);//宏观法线
                 normalWS = normalize(lerp(
@@ -391,7 +473,7 @@ Shader "Tutorial/Water"
 
                 
                 //读取泡沫
-                float4 displacement = SampleOceanDisplacement(input.oceanXZ);
+                float4 displacement = SampleOceanDisplacement(input.oceanXZ) * shoreline.fftWeight;
                 float rawFoam = saturate(displacement.a);
                 float foam = smoothstep(0.25, 0.75, rawFoam);
                 foam *= distanceFade;
@@ -505,6 +587,68 @@ Shader "Tutorial/Water"
                 {
                     return half4(specular, 1);
                 }
+                
+                if (_DebugMode >= 12 && _DebugMode <= 14 && shoreline.insideMap < 0.5)
+                {
+                    return half4(1, 0, 1, 1);
+                }
+
+                if (_DebugMode == 12)
+                {
+                    return half4(shoreline.encodedCoast.rrr, 1);
+                }
+
+                if (_DebugMode == 13)
+                {
+                    return half4(shoreline.encodedCoast.g, shoreline.encodedCoast.b, 0, 1);
+                }
+
+                if (_DebugMode == 14)
+                {
+                    return half4(shoreline.encodedCoast.aaa, 1);
+                }
+
+                if (_DebugMode == 15)
+                {
+                    float normalizedDistance = saturate(shoreline.waterDistance / max(_MaxCoastDistance, 0.0001) * 0.5 + 0.5);
+                    return half4(normalizedDistance.xxx, 1);
+                }
+
+                if (_DebugMode == 16)
+                {
+                    return half4(shoreline.fftWeight.xxx, 1);
+                }
+                if (_DebugMode == 17)
+                {
+                    if (shoreline.insideMap < 0.5)
+                    {
+                        return half4(1, 0, 1, 1);
+                    }
+
+                    float2 profileUV = ComputeShoreWaveProfileUV(shoreline, input.oceanXZ);
+                    float sampledU = frac(profileUV.x);
+
+                    return half4(sampledU.xxx, 1);
+                }
+
+                if (_DebugMode == 18)
+                {
+                    if (shoreline.insideMap < 0.5)
+                    {
+                        return half4(1, 0, 1, 1);
+                    }
+
+                    float2 profileUV = ComputeShoreWaveProfileUV(shoreline, input.oceanXZ);
+                    float sampledV = saturate(profileUV.y);
+
+                    return half4(sampledV.xxx, 1);
+                }
+                if (_DebugMode == 19)
+                {
+                    ShoreBaseWaveSample shoreBaseWave = SampleShoreBaseWaveRaw(input.oceanXZ);
+                    return half4(shoreBaseWave.encodedWave.rgb, 1);
+                }
+
                 finalColor = ApplyDistanceFogToWater(finalColor, input.positionWS);
                 return half4(finalColor, 1);
             }

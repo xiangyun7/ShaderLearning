@@ -72,13 +72,8 @@ void BuildCoastlineMap(uint3 dispatchID : SV_DispatchThreadID)
     float2 encodedDirection =
         directionWS * 0.5 + 0.5;
 
-    // A: procedural Wave Scale. Waves grow continuously from the
-    // outer edge of the coast band and reach full scale at the shore.
-    float waveScale =
-        1.0 - smoothstep(
-            0.0,
-            _MaxCoastDistance,
-            unsignedDistance);
+    // A only marks valid water for shoreline displacement.
+    float waveScale = isLand ? 0.0 : 1.0;
 
     _CoastlineMap[pixel] = float4(
         encodedDistance,

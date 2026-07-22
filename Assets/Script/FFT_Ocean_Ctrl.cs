@@ -208,10 +208,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
             Debug.LogError("Water material is missing.", this);
             return;
         }
-        if (coastlineBakeAsset == null || coastlineBakeAsset.CoastlineMap == null || coastlineBakeAsset.GroundHeightMap == null || !waterMaterial.HasProperty(CoastlineMapID))
-        {
-            return;
-        }
+        bool canBindCoastline = coastlineBakeAsset != null && coastlineBakeAsset.CoastlineMap != null && coastlineBakeAsset.GroundHeightMap != null && waterMaterial.HasProperty(CoastlineMapID);
+        
         waterMaterial.SetTexture(DisplacementTextureID, _DisplacementTexture);
         waterMaterial.SetTexture(SlopeTextureID, _SlopeTexture);
         Vector4 lengthScales = new Vector4(spectrumLayers[0].lengthScale, spectrumLayers[1].lengthScale, spectrumLayers[2].lengthScale, spectrumLayers[3].lengthScale);
@@ -233,23 +231,23 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         waterMaterial.SetColor("_ScatterColor", _ScatterColor);
         waterMaterial.SetColor("_FoamColor", _FoamColor);
 
+        if (canBindCoastline)
+        {
+            Bounds bounds = coastlineBakeAsset.Bounds;
+            float maxDistance = Mathf.Max(0.01f, coastlineBakeAsset.MaxCoastDistance);
+            float blendStart = Mathf.Clamp(fftBlendStart, 0f, maxDistance - 0.01f);
+            float blendEnd = Mathf.Clamp(fftBlendEnd, blendStart + 0.01f, maxDistance);
+            Vector2 heightRange = coastlineBakeAsset.HeightDecodeRange;
 
-        Bounds bounds = coastlineBakeAsset.Bounds;
-        float maxDistance = Mathf.Max(0.01f, coastlineBakeAsset.MaxCoastDistance);
-        float blendStart = Mathf.Clamp(fftBlendStart, 0f, maxDistance - 0.01f);
-        float blendEnd = Mathf.Clamp(fftBlendEnd, blendStart + 0.01f, maxDistance);
-        Vector2 heightRange = coastlineBakeAsset.HeightDecodeRange;
-
-        waterMaterial.SetTexture(CoastlineMapID, coastlineBakeAsset.CoastlineMap);
-        waterMaterial.SetTexture(GroundHeightMapID, coastlineBakeAsset.GroundHeightMap);
-        waterMaterial.SetVector(CoastMapMinSizeID, new Vector4(bounds.min.x, bounds.min.z, bounds.size.x, bounds.size.z));
-        waterMaterial.SetFloat(MaxCoastDistanceID, maxDistance);
-        waterMaterial.SetVector(GroundHeightDecodeRangeID, new Vector4(heightRange.x, heightRange.y, 0f, 0f));
-        waterMaterial.SetFloat(WaterLevelID, coastlineBakeAsset.WaterLevel);
-        waterMaterial.SetFloat(FFTBlendStartID, blendStart);
-        waterMaterial.SetFloat(FFTBlendEndID, blendEnd);
-        waterMaterial.SetFloat(FFTBlendStartID, blendStart);
-        waterMaterial.SetFloat(FFTBlendEndID, blendEnd);
+            waterMaterial.SetTexture(CoastlineMapID, coastlineBakeAsset.CoastlineMap);
+            waterMaterial.SetTexture(GroundHeightMapID, coastlineBakeAsset.GroundHeightMap);
+            waterMaterial.SetVector(CoastMapMinSizeID, new Vector4(bounds.min.x, bounds.min.z, bounds.size.x, bounds.size.z));
+            waterMaterial.SetFloat(MaxCoastDistanceID, maxDistance);
+            waterMaterial.SetVector(GroundHeightDecodeRangeID, new Vector4(heightRange.x, heightRange.y, 0f, 0f));
+            waterMaterial.SetFloat(WaterLevelID, coastlineBakeAsset.WaterLevel);
+            waterMaterial.SetFloat(FFTBlendStartID, blendStart);
+            waterMaterial.SetFloat(FFTBlendEndID, blendEnd);
+        }
 
     }
     RenderTexture CreateRenderTexArray(int width, int height, int depth, RenderTextureFormat format, bool mips)

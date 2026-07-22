@@ -17,7 +17,7 @@ MonoBehaviour:
   Bounds:
     m_Center: {x: 0, y: 5, z: 0}
     m_Extent: {x: 250, y: 15, z: 250}
-  WaterLevel: -1
+  WaterLevel: 0
   MaxCoastDistance: 60
   Resolution: 1024
   HeightDecodeRange: {x: -10, y: 20}
