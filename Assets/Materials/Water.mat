@@ -25,7 +25,10 @@ Material:
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
-  m_InvalidKeywords: []
+  m_InvalidKeywords:
+  - _ISNEEDDETAIL_ON
+  - _ISNEEDNOISE_ON
+  - _ISNEEDTIME_ON
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -84,6 +87,14 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _ShoreBaseProfileInverseMap:
+        m_Texture: {fileID: 2800000, guid: e199d0a720468c9438d7b31b97fd15a8, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ShoreBaseProfileMap:
+        m_Texture: {fileID: 2800000, guid: 821328e3240e762409c065821b605b78, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _ShoreBaseWaveVolume:
         m_Texture: {fileID: 11700000, guid: abebfa9a2e41e9243968242ad21a0260, type: 2}
         m_Scale: {x: 1, y: 1}
@@ -130,7 +141,7 @@ Material:
     - _CoastTessFade: 4
     - _Cull: 2
     - _Cutoff: 0.5
-    - _DebugMode: 20
+    - _DebugMode: 0
     - _DeepAlpha: 0.85
     - _DepthLevel: 0.14
     - _DepthPower: 0.1
@@ -149,10 +160,14 @@ Material:
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
+    - _IsNeedDetail: 1
+    - _IsNeedNoise: 1
+    - _IsNeedTime: 1
     - _MaxCoastDistance: 60
     - _Metallic: 0
-    - _NoiseScale: 0
-    - _NoiseTime: 0
+    - _NoiseMapSampleScale: 1
+    - _NoiseScale: 0.2419
+    - _NoiseTime: 0.7
     - _NormalScale: 2.12
     - _NormalSpeed: 0.2
     - _NormalTiling: 10
@@ -164,12 +179,23 @@ Material:
     - _ReflectionStrength: 0.898
     - _SSSStrength: 1.8
     - _ShallowAlpha: 0.4
+    - _ShoreBaseBlendEnd: 60
+    - _ShoreBaseBlendStart: 40
+    - _ShoreBaseFoamStrength: 0.5
+    - _ShoreBaseHorizontalStrength: 1
+    - _ShoreBaseProfileAnimationSpeed: 0.5
+    - _ShoreBaseProfileDistance: 2.25
+    - _ShoreBaseProfileSpeed: 0.5
+    - _ShoreBaseProfileWidth: 10
+    - _ShoreBaseVerticalStrength: 1
     - _ShoreBaseWaveChoppiness: 0.5
     - _ShoreBaseWaveFoamStrength: 1
     - _ShoreBaseWaveHeight: 3
     - _ShoreBaseWaveNormalStrength: 1
     - _ShoreBaseWaveSpeed: 0.08
     - _ShoreBaseWaveWorldSize: 80
+    - _ShoreWaveScale: 0.016667
+    - _ShoreWaveWidth: -0.09
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
     - _SpectrumDebugLayer: -1
@@ -187,16 +213,29 @@ Material:
     - _TessMinFactor: 4
     - _TessNearDistance: 10
     - _TessPatchCull: 1
+    - _TimeOffset: 0
     - _WaterLevel: 0
     - _WaveAmount: 11
     - _WaveAmplitude: 0.15
+    - _WaveCosFrequency: 1
+    - _WaveCosStrength: 1
+    - _WaveDetailCosFrequency: 1
+    - _WaveDetailCosStrength: 1
+    - _WaveDetailSinFrequency: 1
+    - _WaveDetailSinStrength: 1
+    - _WaveForwardTweak: 1
+    - _WaveGroundPrediction: 2
     - _WaveLength: 4.3
-    - _WaveProfileAnimationSpeed: 0.3
-    - _WaveProfileDistance: 5
-    - _WaveProfileSpeed: 0.5
+    - _WaveProfileAnimationSpeed: 0.75
+    - _WaveProfileDistance: 2.25
+    - _WaveProfileOffsetStrength: 1
+    - _WaveProfileSpeed: 0.9
     - _WaveProfileWidth: 10
     - _WaveScale: 0.3
+    - _WaveSinFrequency: 1
+    - _WaveSinStrength: 1
     - _WaveSpeed: 1
+    - _WaveTimeStrength: 0.1
     - _WorkflowMode: 1
     - _ZWrite: 1
     - _sssDistortion: 0.65
@@ -211,6 +250,7 @@ Material:
     - _OceanFoamStrengths: {r: 0.15, g: 0.5, b: 0.7, a: 1.5}
     - _OceanLengthScales: {r: 1000, g: 300, b: 80, a: 20}
     - _ShallowColor: {r: 0.25, g: 0.75, b: 0.8, a: 1}
+    - _ShoreBaseProfileDecode: {r: -0.2916763, g: 0, b: 0.4193958, a: 0.1299361}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _WaveDirection: {r: 1, g: 1, b: 0, a: 0}
     - _WaveProfileDecode: {r: -0.330324, g: 0, b: 0.470531, a: 0.124962}

@@ -2,7 +2,7 @@ Shader "Tutorial/Water"
 {
     Properties
     {
-        _DebugMode ("Debug Mode", Range(0, 20)) = 0
+        _DebugMode ("Debug Mode", Range(0, 18)) = 0
         
         [Header(Depth)]
         _DepthLevel ("Depth Level", Range(0, 5)) = 1
@@ -44,6 +44,10 @@ Shader "Tutorial/Water"
         [HideInInspector] _WaterLevel ("Water Level", Float) = 0
         [HideInInspector] _FFTBlendStart ("FFT Blend Start", Float) = 10
         [HideInInspector] _FFTBlendEnd ("FFT Blend End", Float) = 55
+        _ShoreWaveWidth ("Shore Wave Width", Float) = -0.09
+        // 将 FF2 默认的 -9cm 海岸层偏移换算为 Unity 工程使用的 -0.09m。
+        _ShoreWaveScale ("Shore Wave Scale", Float) = 0.016667
+        // 让线性海岸层混合在当前 60m SDF 边界处恢复完整 FFT。
 
         [Header(Shoreline Wave)]
         _WaveProfileMap ("Wave Profile Map", 2D) = "black" {}
@@ -52,18 +56,30 @@ Shader "Tutorial/Water"
         _WaveProfileDistance ("Wave Profile Distance", Float) = 2.25
         _WaveProfileSpeed ("Wave Profile Speed", Float) = 0.9
         _WaveProfileAnimationSpeed ("Wave Profile Animation Speed", Float) = 0.75
+        _WaveProfileOffsetStrength ("Wave Profile Offset Strength", Range(0, 2)) = 1
+        _WaveForwardTweak ("Wave Forward Tweak", Range(0, 2)) = 1
+        _WaveGroundPrediction ("Wave Ground Prediction", Float) = 2
+        // 将 FF2 默认的 200cm 地形预测距离换算为 Unity 工程使用的 2m。
+
+        [Toggle] _IsNeedTime ("Use Wave Time", Float) = 1
+        _TimeOffset ("Wave Time Offset", Float) = 0
+        _WaveTimeStrength ("Alongshore Time Strength", Range(0, 2)) = 0.1
+
+        [Toggle] _IsNeedDetail ("Use Wave Detail", Float) = 1
+        _WaveSinStrength ("Wave Sin Strength", Range(0, 50)) = 1
+        _WaveCosStrength ("Wave Cos Strength", Range(0, 50)) = 1
+        _WaveSinFrequency ("Wave Sin Frequency", Range(0.1, 5)) = 1
+        _WaveCosFrequency ("Wave Cos Frequency", Range(0.1, 5)) = 1
+        _WaveDetailSinStrength ("Detail Sin Strength", Range(0, 30)) = 1
+        _WaveDetailCosStrength ("Detail Cos Strength", Range(0, 30)) = 1
+        _WaveDetailSinFrequency ("Detail Sin Frequency", Range(0.1, 5)) = 1
+        _WaveDetailCosFrequency ("Detail Cos Frequency", Range(0.1, 5)) = 1
+
+        [Toggle] _IsNeedNoise ("Use Wave Noise", Float) = 0
         _SmoothNoiseMap ("Smooth Noise Map", 2D) = "gray" {}
         _NoiseTime ("Wave Noise Time", Range(0, 2)) = 0
         _NoiseScale ("Wave Noise Scale", Range(0, 2)) = 0
-
-        [Header(Shore Base Wave)]
-        _ShoreBaseWaveVolume ("Shore Base Wave Volume", 3D) = "white" {}
-        _ShoreBaseWaveWorldSize ("Shore Base Wave World Size", Float) = 80
-        _ShoreBaseWaveHeight ("Shore Base Wave Height", Float) = 0.5
-        _ShoreBaseWaveChoppiness ("Shore Base Wave Choppiness", Range(0, 1)) = 0.35
-        _ShoreBaseWaveSpeed ("Shore Base Wave Speed", Float) = 0.08
-        _ShoreBaseWaveNormalStrength ("Shore Base Wave Normal Strength", Float) = 1
-        _ShoreBaseWaveFoamStrength ("Shore Base Wave Foam Strength", Float) = 1
+        _NoiseMapSampleScale ("Noise Map Sample Scale", Float) = 1
 
     }
 
@@ -92,7 +108,6 @@ Shader "Tutorial/Water"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "ShorelineWave.hlsl"
-            #include "ShoreBaseWave.hlsl"
 
 
             TEXTURE2D(_PlanarReflectionTex);SAMPLER(sampler_PlanarReflectionTex);//反射相机纹理
@@ -311,25 +326,47 @@ Shader "Tutorial/Water"
 
 
                 float2 oceanXZ = positionWS.xz;
+                // 保存未位移的世界空间 XZ，保证 FFT、SDF 和 Profile 使用同一采样基准。
+                float3 fftDisplacement = SampleOceanDisplacement(oceanXZ).rgb * distanceFade;
+                // 读取当前顶点的完整远洋 FFT 位移，作为远近海混合的远洋端。
+
                 ShorelineData shoreline = EvaluateShorelineData(oceanXZ);
-                
+                // 从 CoastlineMap 解码当前顶点的离岸距离、朝岸方向和过渡权重。
+                Coastline coastline = GetCoastline(shoreline);
+                // 将工程的海岸数据转换为 FF2 Profile 动画使用的精简数据。
+                float2 profileUV = GetProfileUV(positionWS, coastline);
+                // 按照 FF2 的距离、时间和沿岸 Detail 公式生成 WaveProfileMap UV。
 
-                float3 fftDisplacement = SampleOceanDisplacement(oceanXZ).rgb;//远洋位移
-                ShoreWaveProfile shoreProfile = SampleShoreWaveProfile(shoreline, oceanXZ);
-                float3 shoreDisplacement = ComputeShoreWaveDisplacement(shoreline, shoreProfile);//近岸位移
+                float shorelineFoam;
+                // 接收 Profile B 通道的泡沫数据，当前阶段只保留而不参与着色。
+                float2 forwardUpward = SampleProfileMap(profileUV, shorelineFoam);
+                // 从 Profile RG 通道解码朝岸水平位移和垂直位移。
+                float3 coastSlopeNormal = ComputeCoastSlopeNormal(coastline, oceanXZ);
+                // 沿朝岸方向预测地形高度，取得 FF2 用来处理爬坡运动的坡面方向。
+                float3 shorelineDisplacement = GetFluxSlopeOffset(
+                    forwardUpward,
+                    coastline,
+                    coastSlopeNormal);
+                // 将 Profile 位移沿预测坡面传播，并在离岸后逐渐恢复水平朝岸方向。
+                shorelineDisplacement *= shoreline.waveScale;
+                // 按 FF2 的 Coastline Scale 数据约束 Profile 位移，远水和陆地不再残留近岸浪。
+                shorelineDisplacement *= _WaveProfileOffsetStrength;
+                // 使用独立强度参数整体调整近岸 Profile 位移幅度。
 
-                float3 scaledShoreDisplacement = shoreDisplacement * saturate(shoreline.waveScale);
-                float3 fadedFFTDisplacement = fftDisplacement * distanceFade;
-                float3 finalDisplacement = lerp(scaledShoreDisplacement, fadedFFTDisplacement, shoreline.fftWeight);
-                
-                if (_DebugMode == 20)
-                {
-                    ShoreBaseWaveDecoded shoreBaseWave = SampleShoreBaseWave(oceanXZ);
-                    finalDisplacement = shoreBaseWave.displacementWS;
-                }
-                
+                float3 finalDisplacement = lerp(
+                    shorelineDisplacement,
+                    fftDisplacement,
+                    shoreline.fftWeight);
+                // 按有符号离岸距离在完整近岸位移与完整 FFT 位移之间只混合一次。
+
+                finalDisplacement = lerp(
+                    fftDisplacement,
+                    finalDisplacement,
+                    shoreline.insideMap);
+                // CoastlineMap 烘焙范围外强制恢复完整 FFT，避免采样贴图边缘。
+
                 positionWS += finalDisplacement;
-
+                // 将最终混合位移写入顶点世界坐标，完成本帧水面动画。
 
                 output.positionWS = positionWS;
                 output.positionHCS = TransformWorldToHClip(positionWS);
@@ -423,12 +460,7 @@ Shader "Tutorial/Water"
                 ShorelineData shoreline = EvaluateShorelineData(input.oceanXZ);
 
                 //计算法线
-                float2 slope = SampleOceanSlope(input.oceanXZ) * shoreline.fftWeight;
-                if (_DebugMode == 20)
-                {
-                    ShoreBaseWaveDecoded shoreBaseWave = SampleShoreBaseWave(input.oceanXZ);
-                    slope = shoreBaseWave.derivative * _ShoreBaseWaveNormalStrength;
-                }
+                float2 slope = SampleOceanSlope(input.oceanXZ);
                 float3 normalWS = normalize(float3(-slope.x,1.0,-slope.y));//微观法线
                 float3 macroNormal = float3(0.0, 1.0, 0.0);//宏观法线
                 normalWS = normalize(lerp(
@@ -473,7 +505,7 @@ Shader "Tutorial/Water"
 
                 
                 //读取泡沫
-                float4 displacement = SampleOceanDisplacement(input.oceanXZ) * shoreline.fftWeight;
+                float4 displacement = SampleOceanDisplacement(input.oceanXZ);
                 float rawFoam = saturate(displacement.a);
                 float foam = smoothstep(0.25, 0.75, rawFoam);
                 foam *= distanceFade;
@@ -642,11 +674,6 @@ Shader "Tutorial/Water"
                     float sampledV = saturate(profileUV.y);
 
                     return half4(sampledV.xxx, 1);
-                }
-                if (_DebugMode == 19)
-                {
-                    ShoreBaseWaveSample shoreBaseWave = SampleShoreBaseWaveRaw(input.oceanXZ);
-                    return half4(shoreBaseWave.encodedWave.rgb, 1);
                 }
 
                 finalColor = ApplyDistanceFogToWater(finalColor, input.positionWS);
