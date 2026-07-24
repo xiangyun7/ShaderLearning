@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -7,12 +5,12 @@ using ShaderLearning.Coastline;
 
 public class FFT_Ocean_Ctrl : MonoBehaviour
 {
-    //ÎÆÀíÉùÃ÷
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     public RenderTexture pp_Texture, UpdateTexture; 
     public RenderTexture FourierTexture, _DisplacementTexture, _SlopeTexture;
     public ComputeShader fftOceanCompute;
 
-    //²ÎÊýÉùÃ÷
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private bool spectrumDirty = true;
     public int resolution = 512;
     private int threadGroupsX, threadGroupsY;
@@ -22,13 +20,13 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private float HighCutOff = 9000.0f;
     public int seed = 28;
     public float _RepeatTime = 200f;
-    public float Speed = 0.5f;//²¨ËæÊ±¼äµÄÔË¶¯ËÙ¶È
+    public float Speed = 0.5f;//ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½Ë¶ï¿½ï¿½Ù¶ï¿½
     private const int SpectrumLayerCount = 4;
     private const int JonswapPerLayer = 2;
     private const int JonswapParameterCount = SpectrumLayerCount * JonswapPerLayer;
     private const int SpectrumSlicesPerLayer = 2;
     private const int SpectrumTextureSliceCount = SpectrumLayerCount * SpectrumSlicesPerLayer;
-    //²¨ÀËÅÝÄ­²ÎÊýÉùÃ÷
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     public Vector2 WaveSharp = new Vector2(0.4f, 0.4f);
     [Range(-1.0f, 1.0f)]
     public float FoamBias = 0.2f;
@@ -39,7 +37,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     [Range(0.0f, 1.0f)]
     public float FoamDecayRate = 0.05f;
 
-    //ÉùÃ÷ºËº¯Êý
+    //ï¿½ï¿½ï¿½ï¿½ï¿½Ëºï¿½ï¿½ï¿½
     private int CS_Pinpu;
     private int CS_GongEPinpu;
     private int CS_Update;
@@ -53,7 +51,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     {
         public float scale, angle, spreadBlend, swell;
         public float alpha, peakOmega, gamma, shortWavesFade;
-    }//jonswap³õÊ¼ÆµÆ×¸øcomputeshader¶ÁµÄÊý¾Ý
+    }//jonswapï¿½ï¿½Ê¼Æµï¿½×¸ï¿½computeshaderï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private JONSWAP_ComputeSettings[] computeSpectrums = new JONSWAP_ComputeSettings[JonswapParameterCount];
     [System.Serializable]
     public struct SpectrumLayerSettings
@@ -77,9 +75,9 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         public float fetch;
         [Range(0, 1)] public float spreadBlend, swell, shortWavesFade;
         public float peakEnhancement;
-    }//jonswap¸øÈËµ÷ÕûµÄ²ÎÊý
+    }//jonswapï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½Ä²ï¿½ï¿½ï¿½
     private ComputeBuffer JonswapBuffer;
-    //Ë®Ìå²ÄÖÊÉùÃ÷
+    //Ë®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     [Header("Water Material")]
     public Material waterMaterial;
     //[Space(10)]
@@ -87,25 +85,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     //public float _SunGlintStrength = 20;
     //public float _SpecularPower = 32;
     //public float _SunGlintPower = 1024;
-    [Header("ScatterParams")]
-    public Color _ScatterColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
-    public Color _ScatterPeakColor = new Color(0.0f, 0.67f, 1.0f, 1.0f);
-    public float _HeightStrength = 1.0f;
-    public float _ScatterStrength = 0.1f;
-    public float _WavePeakScatterStrength = 2.0f;
-    public float _AmbientDensity = 0.2f;
-    [Header("FoamParams")]
-    public Color _FoamColor = new Color(1, 1, 1, 1);
-    public float _EdgeFoamPower = 32;
-    [Space(10)]
-    public float _FoamRoughness = 0.2f;
-    public float _Roughness = 0.1f;
-
     [Header("Coastline")]
     public CoastlineBakeAsset coastlineBakeAsset;
-
-    [Min(0f)] public float fftBlendStart = 10f;
-    [Min(0f)] public float fftBlendEnd = 55f;
 
 
     private static readonly int DisplacementTextureID = Shader.PropertyToID("_DisplacementTexture");
@@ -117,14 +98,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private static readonly int CoastMapMinSizeID = Shader.PropertyToID("_CoastMapMinSize");
     private static readonly int MaxCoastDistanceID = Shader.PropertyToID("_MaxCoastDistance");
     private static readonly int GroundHeightDecodeRangeID = Shader.PropertyToID("_GroundHeightDecodeRange");
-    private static readonly int WaterLevelID = Shader.PropertyToID("_WaterLevel");
-    private static readonly int FFTBlendStartID = Shader.PropertyToID("_FFTBlendStart");
-    private static readonly int FFTBlendEndID = Shader.PropertyToID("_FFTBlendEnd");
 
 
-    private void Reset()
-    {
-    }
     private void OnValidate()
     {
         spectrumDirty = true;
@@ -200,7 +175,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
     }
 
-    //¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ªfunction mode¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½function modeï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
     private void BindWaterMaterialValue()
     {
         if (waterMaterial == null)
@@ -220,23 +195,10 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         //waterMaterial.SetFloat("_SunGlintStrength", _SunGlintStrength);
         //waterMaterial.SetFloat("_SpecularPower", _SpecularPower);
         //waterMaterial.SetFloat("_SunGlintPower", _SunGlintPower);
-        waterMaterial.SetFloat("_EdgeFoamPower", _EdgeFoamPower);
-        waterMaterial.SetFloat("_HeightStrength", _HeightStrength);
-        waterMaterial.SetFloat("_WavePeakScatterStrength", _WavePeakScatterStrength);
-        waterMaterial.SetFloat("_AmbientDensity", _AmbientDensity);
-        waterMaterial.SetFloat("_ScatterStrength", _ScatterStrength);
-        waterMaterial.SetFloat("_Roughness", _Roughness);
-        waterMaterial.SetFloat("_FoamRoughness", _FoamRoughness);
-        waterMaterial.SetColor("_ScatterPeakColor", _ScatterPeakColor);
-        waterMaterial.SetColor("_ScatterColor", _ScatterColor);
-        waterMaterial.SetColor("_FoamColor", _FoamColor);
-
         if (canBindCoastline)
         {
             Bounds bounds = coastlineBakeAsset.Bounds;
             float maxDistance = Mathf.Max(0.01f, coastlineBakeAsset.MaxCoastDistance);
-            float blendStart = Mathf.Clamp(fftBlendStart, 0f, maxDistance - 0.01f);
-            float blendEnd = Mathf.Clamp(fftBlendEnd, blendStart + 0.01f, maxDistance);
             Vector2 heightRange = coastlineBakeAsset.HeightDecodeRange;
 
             waterMaterial.SetTexture(CoastlineMapID, coastlineBakeAsset.CoastlineMap);
@@ -244,9 +206,6 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
             waterMaterial.SetVector(CoastMapMinSizeID, new Vector4(bounds.min.x, bounds.min.z, bounds.size.x, bounds.size.z));
             waterMaterial.SetFloat(MaxCoastDistanceID, maxDistance);
             waterMaterial.SetVector(GroundHeightDecodeRangeID, new Vector4(heightRange.x, heightRange.y, 0f, 0f));
-            waterMaterial.SetFloat(WaterLevelID, coastlineBakeAsset.WaterLevel);
-            waterMaterial.SetFloat(FFTBlendStartID, blendStart);
-            waterMaterial.SetFloat(FFTBlendEndID, blendEnd);
         }
 
     }
@@ -363,17 +322,17 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private void RunKernel()
     {
         
-        //¸üÐÂÆµÆ×
+        //ï¿½ï¿½ï¿½ï¿½Æµï¿½ï¿½
         fftOceanCompute.SetTexture(CS_Update, "pp_Texture", pp_Texture);
         fftOceanCompute.SetTexture(CS_Update, "UpdateTexture", UpdateTexture);
         fftOceanCompute.Dispatch(CS_Update, threadGroupsX, threadGroupsY, 1);
-        //ifft£¨Ë®Æ½£¬ÊúÖ±£©
+        //ifftï¿½ï¿½Ë®Æ½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½
         Graphics.CopyTexture(UpdateTexture, FourierTexture);
         fftOceanCompute.SetTexture(CS_HorizontalIFFT, "FourierTexture", FourierTexture);
         fftOceanCompute.Dispatch(CS_HorizontalIFFT, 1, resolution, 1);
         fftOceanCompute.SetTexture(CS_VerticalIFFT, "FourierTexture", FourierTexture);
         fftOceanCompute.Dispatch(CS_VerticalIFFT, 1, resolution, 1);
-        //ÕûÀí²¨Æ×
+        //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         fftOceanCompute.SetTexture(CS_AssembleTextures, "FourierTexture", FourierTexture);
         fftOceanCompute.SetTexture(CS_AssembleTextures, "_DisplacementTexture", _DisplacementTexture);
         fftOceanCompute.SetTexture(CS_AssembleTextures, "_SlopeTexture", _SlopeTexture);

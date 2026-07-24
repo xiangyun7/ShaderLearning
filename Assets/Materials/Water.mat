@@ -67,6 +67,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _FoamNormalSoftHeightMap:
+        m_Texture: {fileID: 2800000, guid: c5b4b805fdc06c4458f4380be24c1185, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _GroundHeightMap:
         m_Texture: {fileID: 2800000, guid: 8cc1f3045e6dd8f4e99537b0d0990ff2, type: 2}
         m_Scale: {x: 1, y: 1}
@@ -131,19 +135,26 @@ Material:
     m_Floats:
     - _AlphaClip: 0
     - _AlphaToMask: 0
+    - _AmbientDensity: 0.02
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
     - _ClearCoatMask: 0
     - _ClearCoatSmoothness: 0
+    - _CoastDirectionGradientBlend: 1
+    - _CoastDirectionGradientRadius: 2
     - _CoastTessDistance: 55
-    - _CoastTessFactor: 64
+    - _CoastTessFactor: 128
     - _CoastTessFade: 4
+    - _CoastlineFoamDistance: 3
+    - _CoastlineFoamStrength: 1
+    - _CoastlineNormalRange: 0.5
+    - _CoastlineVelocityScale: 0.001
     - _Cull: 2
     - _Cutoff: 0.5
     - _DebugMode: 0
     - _DeepAlpha: 0.85
-    - _DepthLevel: 0.14
+    - _DepthLevel: 0.05
     - _DepthPower: 0.1
     - _DetailAlbedoMapScale: 1
     - _DetailNormalMapScale: 1
@@ -154,16 +165,22 @@ Material:
     - _EnvironmentReflections: 1
     - _FBMAmplitude: 0.436
     - _FBMFrequency: 1.6
-    - _FFTBlendEnd: 60
-    - _FFTBlendStart: 40
-    - _FarSunSpecularWidth: 1
+    - _FoamOpacityPower: 1.35
+    - _FoamOpacityStrength: 1.4
+    - _FoamRoughness: 0.2
+    - _FoamUVAdvectionOffset: -0.5
+    - _FoamUVAdvectionVelocity: 7
+    - _FoamUVRandomization: 1
+    - _FoamUVScale: 0.09
+    - _FoamUVSpeed: 1
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
+    - _HeightStrength: 1
     - _IsNeedDetail: 1
     - _IsNeedNoise: 1
     - _IsNeedTime: 1
-    - _MaxCoastDistance: 60
+    - _MaxCoastDistance: 100
     - _Metallic: 0
     - _NoiseMapSampleScale: 1
     - _NoiseScale: 0.2419
@@ -177,7 +194,9 @@ Material:
     - _QueueOffset: 0
     - _ReceiveShadows: 1
     - _ReflectionStrength: 0.898
+    - _Roughness: 0.1
     - _SSSStrength: 1.8
+    - _ScatterStrength: 0.05
     - _ShallowAlpha: 0.4
     - _ShoreBaseBlendEnd: 60
     - _ShoreBaseBlendStart: 40
@@ -196,14 +215,16 @@ Material:
     - _ShoreBaseWaveWorldSize: 80
     - _ShoreWaveScale: 0.016667
     - _ShoreWaveWidth: -0.09
+    - _ShorelineFoamNormalStrength: 0.35
+    - _ShorelineFoamStrength: 0.7
+    - _ShorelineShallowFoamDepth: 1.4
+    - _ShorelineShallowFoamPower: 8
+    - _ShorelineShallowFoamStrength: 0.55
     - _Smoothness: 0.5
     - _SmoothnessTextureChannel: 0
-    - _SpectrumDebugLayer: -1
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
-    - _SunGlintFadeEnd: 0.45
-    - _SunGlintFadeStart: 0.05
     - _Surface: 0
     - _TessCullBias: -50
     - _TessDistancePower: 1
@@ -214,26 +235,29 @@ Material:
     - _TessNearDistance: 10
     - _TessPatchCull: 1
     - _TimeOffset: 0
-    - _WaterLevel: 0
     - _WaveAmount: 11
     - _WaveAmplitude: 0.15
-    - _WaveCosFrequency: 1
-    - _WaveCosStrength: 1
+    - _WaveCosFrequency: 0.2
+    - _WaveCosStrength: 10
     - _WaveDetailCosFrequency: 1
-    - _WaveDetailCosStrength: 1
-    - _WaveDetailSinFrequency: 1
-    - _WaveDetailSinStrength: 1
-    - _WaveForwardTweak: 1
+    - _WaveDetailCosStrength: 1.5
+    - _WaveDetailSinFrequency: 1.5
+    - _WaveDetailSinStrength: 1.5
+    - _WaveForwardTweak: 0.7
     - _WaveGroundPrediction: 2
     - _WaveLength: 4.3
-    - _WaveProfileAnimationSpeed: 0.75
-    - _WaveProfileDistance: 2.25
+    - _WaveMaxShorewardDistance: 2.3
+    - _WavePeakScatterStrength: 2
+    - _WaveProfileAnimationSpeed: 0.9
+    - _WaveProfileDistance: 2
+    - _WaveProfileForwardStrength: 0.9
+    - _WaveProfileHeightStrength: 1.5
     - _WaveProfileOffsetStrength: 1
-    - _WaveProfileSpeed: 0.9
-    - _WaveProfileWidth: 10
+    - _WaveProfileSpeed: 0.4
+    - _WaveProfileWidth: 15
     - _WaveScale: 0.3
-    - _WaveSinFrequency: 1
-    - _WaveSinStrength: 1
+    - _WaveSinFrequency: 1.2
+    - _WaveSinStrength: 10
     - _WaveSpeed: 1
     - _WaveTimeStrength: 0.1
     - _WorkflowMode: 1
@@ -246,10 +270,13 @@ Material:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _DeepColor: {r: 0.016098991, g: 0.1855202, b: 0.46540874, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _FoamColor: {r: 0.77, g: 0.973, b: 1, a: 1}
     - _GroundHeightDecodeRange: {r: -10, g: 20, b: 0, a: 0}
     - _OceanFoamStrengths: {r: 0.15, g: 0.5, b: 0.7, a: 1.5}
     - _OceanLengthScales: {r: 1000, g: 300, b: 80, a: 20}
-    - _ShallowColor: {r: 0.25, g: 0.75, b: 0.8, a: 1}
+    - _ScatterColor: {r: 0, g: 0.517, b: 1, a: 1}
+    - _ScatterPeakColor: {r: 0.192, g: 0.742, b: 1, a: 1}
+    - _ShallowColor: {r: 0.2073889, g: 0.34061885, b: 0.61635214, a: 1}
     - _ShoreBaseProfileDecode: {r: -0.2916763, g: 0, b: 0.4193958, a: 0.1299361}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
     - _WaveDirection: {r: 1, g: 1, b: 0, a: 0}

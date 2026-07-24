@@ -9,9 +9,9 @@ public sealed class WaterBaseGrid : MonoBehaviour
     [Min(1f)]
     public float size = 500f;
 
-    // ÕâÊÇ»ù´¡Íø¸ñ·Ö±æÂÊ£¬²»ÊÇ×îÖÕÏÔÊ¾ÃæÊý¡£
-    // Èç¹û shader Àï×ö tessellation£¬Í¨³£ 16-64 ¾Í¹»Æð²½¡£
-    [Range(1, 256)]
+    // ï¿½ï¿½ï¿½Ç»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Ê£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    // ï¿½ï¿½ï¿½ shader ï¿½ï¿½ï¿½ï¿½ tessellationï¿½ï¿½Í¨ï¿½ï¿½ 16-64 ï¿½Í¹ï¿½ï¿½ð²½¡ï¿½
+    [Range(1, 512)]
     public int patchResolution = 32;
 
     [Min(1f)]
@@ -31,8 +31,6 @@ public sealed class WaterBaseGrid : MonoBehaviour
     private int lastPatchResolution;
 
     private static readonly int TessEdgeLengthId = Shader.PropertyToID("_TessEdgeLength");
-    private static readonly int WaterSizeId = Shader.PropertyToID("_WaterSize");
-    private static readonly int PatchResolutionId = Shader.PropertyToID("_PatchResolution");
 
     private void OnEnable()
     {
@@ -43,7 +41,7 @@ public sealed class WaterBaseGrid : MonoBehaviour
     private void OnValidate()
     {
         size = Mathf.Max(1f, size);
-        patchResolution = Mathf.Clamp(patchResolution, 1, 256);
+        patchResolution = Mathf.Clamp(patchResolution, 1, 512);
         tessEdgeLength = Mathf.Max(1f, tessEdgeLength);
         boundsHeight = Mathf.Max(1f, boundsHeight);
 
@@ -83,7 +81,7 @@ public sealed class WaterBaseGrid : MonoBehaviour
 
         mesh = null;
     }
-    //¡ª¡ª¡ª¡ª¡ª¡ªfunction mode¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª¡ª-
+    //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½function modeï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½-
     private void RequestRebuild()
     {
         rebuildRequested = true;
@@ -203,8 +201,6 @@ public sealed class WaterBaseGrid : MonoBehaviour
 
         meshRenderer.GetPropertyBlock(propertyBlock);
         propertyBlock.SetFloat(TessEdgeLengthId, tessEdgeLength);
-        propertyBlock.SetFloat(WaterSizeId, size);
-        propertyBlock.SetFloat(PatchResolutionId, patchResolution);
         meshRenderer.SetPropertyBlock(propertyBlock);
     }
 }

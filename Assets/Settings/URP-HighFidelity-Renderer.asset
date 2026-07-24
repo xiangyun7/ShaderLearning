@@ -48,7 +48,7 @@ MonoBehaviour:
     volumeCloudDownsample: 4
     blueNoiseMap: {fileID: 2800000, guid: 36f118343fc974119bee3d09e2111500, type: 3}
     rayStep: 10
-    densityMultiplier: 0.04
+    densityMultiplier: 0.05
     cloudNoiseMap: {fileID: 11700000, guid: d091f022176abb248aebc6e5e2d28c67, type: 2}
     cloudScale: {x: 2, y: 2, z: 2}
     noiseTileSize: 500
