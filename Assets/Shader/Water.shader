@@ -3,7 +3,7 @@ Shader "Tutorial/Water"
     Properties
     {
         [Header(Debug Views)]
-        [WaterDebugMode]
+        [Enum(Original,0,Reflection,1,Ambient,2,Scattering,3,Specular,4,Foam,5,Shoreline_UV,6)]
         _DebugMode ("Debug Mode", Float) = 0
 
         [Header(Water Color and Depth)]
@@ -731,37 +731,37 @@ Shader "Tutorial/Water"
                 
 
 
-
                 //散射参数
                 float var_H = max(0.0f, displacement.y) * _HeightStrength;
                 float k1 = _WavePeakScatterStrength * var_H * pow(DotClamped(lightDirWS, -viewDirWS), 4.0f) * pow(saturate(0.5f - 0.5f * dot(lightDirWS, normalWS)), 3.0f);
                 k1 *= distanceFade;
                 float k2 = _ScatterStrength * pow(DotClamped(viewDirWS, normalWS), 2.0f);
                 float k4 = _AmbientDensity;
-                //散射光
-                float3 scatter = (k1 * _ScatterPeakColor + k2 * _ScatterColor) * mainLight.color.rgb;
-                scatter += k4 * reflectionColor;
+                //环境光与直接散射分开保存，便于调试视图独立检查两部分。
+                float3 directScatter = (k1 * _ScatterPeakColor + k2 * _ScatterColor) * mainLight.color.rgb;
+                float3 ambientLight = k4 * reflectionColor;
+                float3 scatter = directScatter + ambientLight;
 
 
                 half3 finalColor = reflectionColor * Fresnel + (refractColor+scatter) * (1.0 - Fresnel)+specular;
                 finalColor = lerp(finalColor, foamColor, foamOpacity);
                 // 使用最终泡沫透明度覆盖水面颜色，而不是直接使用未经整形的原始遮罩。
-                // 1: Refraction before scattering, reflection, specular, and foam.
+                // 1: Planar reflection contribution.
                 if (_DebugMode == 1)
-                {
-                    return half4(refractColor, 1);
-                }
-
-                // 2: Planar reflection contribution.
-                if (_DebugMode == 2)
                 {
                     return half4(reflectionColor, 1);
                 }
 
-                // 3: Water scattering contribution.
+                // 2: Ambient lighting contribution.
+                if (_DebugMode == 2)
+                {
+                    return half4(ambientLight, 1);
+                }
+
+                // 3: Direct water scattering contribution.
                 if (_DebugMode == 3)
                 {
-                    return half4(scatter, 1);
+                    return half4(directScatter, 1);
                 }
 
                 // 4: BRDF specular contribution.
@@ -776,7 +776,7 @@ Shader "Tutorial/Water"
                     return half4(foamOpacity.xxx, 1);
                 }
 
-                // 6: Repeating shoreline WaveProfile U coordinate.
+                // 6: Shoreline WaveProfile UV; U is red and V is green.
                 if (_DebugMode == 6)
                 {
                     if (shoreline.insideMap < 0.5)
@@ -788,22 +788,8 @@ Shader "Tutorial/Water"
                         shoreline,
                         input.oceanXZ);
                     float sampledU = frac(profileUV.x);
-                    return half4(sampledU.xxx, 1);
-                }
-
-                // 7: Shoreline WaveProfile V coordinate.
-                if (_DebugMode == 7)
-                {
-                    if (shoreline.insideMap < 0.5)
-                    {
-                        return half4(1, 0, 1, 1);
-                    }
-
-                    float2 profileUV = ComputeShoreWaveProfileUV(
-                        shoreline,
-                        input.oceanXZ);
                     float sampledV = saturate(profileUV.y);
-                    return half4(sampledV.xxx, 1);
+                    return half4(sampledU, sampledV, 0, 1);
                 }
 
                 finalColor = ApplyDistanceFogToWater(finalColor, input.positionWS);

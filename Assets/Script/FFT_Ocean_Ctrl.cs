@@ -1,16 +1,16 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 using ShaderLearning.Coastline;
 
 public class FFT_Ocean_Ctrl : MonoBehaviour
 {
-    //��������
+    //纹理声明 shader声明
     public RenderTexture pp_Texture, UpdateTexture; 
     public RenderTexture FourierTexture, _DisplacementTexture, _SlopeTexture;
     public ComputeShader fftOceanCompute;
 
-    //��������
+    //fft参数
     private bool spectrumDirty = true;
     public int resolution = 512;
     private int threadGroupsX, threadGroupsY;
@@ -26,7 +26,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     private const int JonswapParameterCount = SpectrumLayerCount * JonswapPerLayer;
     private const int SpectrumSlicesPerLayer = 2;
     private const int SpectrumTextureSliceCount = SpectrumLayerCount * SpectrumSlicesPerLayer;
-    //������ĭ��������
+    //泡沫参数
     public Vector2 WaveSharp = new Vector2(0.4f, 0.4f);
     [Range(-1.0f, 1.0f)]
     public float FoamBias = 0.2f;
@@ -37,7 +37,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     [Range(0.0f, 1.0f)]
     public float FoamDecayRate = 0.05f;
 
-    //�����˺���
+    //核函数声明
     private int CS_Pinpu;
     private int CS_GongEPinpu;
     private int CS_Update;
@@ -51,7 +51,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     {
         public float scale, angle, spreadBlend, swell;
         public float alpha, peakOmega, gamma, shortWavesFade;
-    }//jonswap��ʼƵ�׸�computeshader��������
+    }//computeshader中的存储的jonswap频谱参数
     private JONSWAP_ComputeSettings[] computeSpectrums = new JONSWAP_ComputeSettings[JonswapParameterCount];
     [System.Serializable]
     public struct SpectrumLayerSettings
@@ -75,9 +75,9 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         public float fetch;
         [Range(0, 1)] public float spreadBlend, swell, shortWavesFade;
         public float peakEnhancement;
-    }//jonswap���˵����Ĳ���
+    }//jonswap参数修改面板
     private ComputeBuffer JonswapBuffer;
-    //ˮ���������
+    //材质
     [Header("Water Material")]
     public Material waterMaterial;
     //[Space(10)]
@@ -85,10 +85,11 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
     //public float _SunGlintStrength = 20;
     //public float _SpecularPower = 32;
     //public float _SunGlintPower = 1024;
+    //sdf纹理
     [Header("Coastline")]
     public CoastlineBakeAsset coastlineBakeAsset;
 
-
+    //shader参数声明
     private static readonly int DisplacementTextureID = Shader.PropertyToID("_DisplacementTexture");
     private static readonly int SlopeTextureID = Shader.PropertyToID("_SlopeTexture");
     private static readonly int OceanLengthScalesID = Shader.PropertyToID("_OceanLengthScales");
@@ -175,7 +176,8 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
     }
 
-    //������������������������function mode��������������������������������
+    //------------------------------function mode------------------------------
+    //绑定材质参数函数
     private void BindWaterMaterialValue()
     {
         if (waterMaterial == null)
@@ -209,6 +211,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         }
 
     }
+    //创建纹理数组函数
     RenderTexture CreateRenderTexArray(int width, int height, int depth, RenderTextureFormat format, bool mips)
     {
         RenderTexture rt = new RenderTexture(width, height, 0, format, RenderTextureReadWrite.Linear);
@@ -224,6 +227,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
 
         return rt;
     }
+    //参数传入compute shader
     void SetCompParam()
     {
         fftOceanCompute.SetInt("_Resolution", resolution);
@@ -244,6 +248,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         fftOceanCompute.SetFloat("_FoamDecayRate", FoamDecayRate);
 
     }
+    //jonswap参数由可视化参数转化为compute shader计算使用的参数
     private JONSWAP_ComputeSettings CreateJonswapComputeSettings(JONSWAP_DisplaySettings display)
     {
         JONSWAP_ComputeSettings compute = new JONSWAP_ComputeSettings();
@@ -259,7 +264,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
 
         return compute;
     }
-
+    //来历不明的计算公式
     private float JonswapAlpha(float fetchValue, float windSpeedValue)
     {
         float safeWindSpeed = Mathf.Max(0.01f, windSpeedValue);
@@ -267,7 +272,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         float value = gravity * safeFetch / (safeWindSpeed * safeWindSpeed);
         return 0.076f * Mathf.Pow(value, -0.22f);
     }
-
+    //来历不明的计算公式
     private float JonswapPeakFrequency(float fetchValue, float windSpeedValue)
     {
         float safeWindSpeed = Mathf.Max(0.01f, windSpeedValue);
@@ -275,6 +280,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         float value = safeWindSpeed * safeFetch / (gravity * gravity);
         return 22.0f * Mathf.Pow(value, -0.33f);
     }
+    //创建计算jonswap的buffer
     private void CreateJonswapBuffer()
     {
         if (JonswapBuffer != null)
@@ -285,6 +291,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         int stride = Marshal.SizeOf(typeof(JONSWAP_ComputeSettings));
         JonswapBuffer = new ComputeBuffer(JonswapParameterCount, stride);
     }
+    //上传四个频谱的数据
     private void UploadJonswapBuffer()
     {
         for (int layerIndex = 0; layerIndex < SpectrumLayerCount; layerIndex++)
@@ -307,6 +314,7 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
         JonswapBuffer.SetData(computeSpectrums);
         fftOceanCompute.SetBuffer(CS_Pinpu, "_JonswapParameters", JonswapBuffer);
     }
+    //用于实时调参
     private void RebuildInitialSpectrum()
     {
         UploadJonswapBuffer();
@@ -319,26 +327,28 @@ public class FFT_Ocean_Ctrl : MonoBehaviour
 
         spectrumDirty = false;
     }
+    //运行核函数
     private void RunKernel()
     {
         
-        //����Ƶ��
+        //根据时间更新频谱
         fftOceanCompute.SetTexture(CS_Update, "pp_Texture", pp_Texture);
         fftOceanCompute.SetTexture(CS_Update, "UpdateTexture", UpdateTexture);
         fftOceanCompute.Dispatch(CS_Update, threadGroupsX, threadGroupsY, 1);
-        //ifft��ˮƽ����ֱ��
+        //对频谱进行ifft
         Graphics.CopyTexture(UpdateTexture, FourierTexture);
         fftOceanCompute.SetTexture(CS_HorizontalIFFT, "FourierTexture", FourierTexture);
         fftOceanCompute.Dispatch(CS_HorizontalIFFT, 1, resolution, 1);
         fftOceanCompute.SetTexture(CS_VerticalIFFT, "FourierTexture", FourierTexture);
         fftOceanCompute.Dispatch(CS_VerticalIFFT, 1, resolution, 1);
-        //�������
+        //对ifft取得的纹理解码为位移贴图和泡沫贴图
         fftOceanCompute.SetTexture(CS_AssembleTextures, "FourierTexture", FourierTexture);
         fftOceanCompute.SetTexture(CS_AssembleTextures, "_DisplacementTexture", _DisplacementTexture);
         fftOceanCompute.SetTexture(CS_AssembleTextures, "_SlopeTexture", _SlopeTexture);
         fftOceanCompute.Dispatch(CS_AssembleTextures, threadGroupsX, threadGroupsY, 1);
 
     }
+    //释放rt
     private void ReleaseRT(ref RenderTexture rt)
     {
         if (rt == null)

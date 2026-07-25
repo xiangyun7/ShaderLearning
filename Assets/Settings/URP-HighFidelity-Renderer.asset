@@ -32,7 +32,7 @@ MonoBehaviour:
   m_Active: 1
   settings:
     cloudMaterial: {fileID: 2100000, guid: 49bddef4ecacb3c499136833bd2c4147, type: 2}
-    lightAbsorptionThroughCloud: 1
+    lightAbsorptionThroughCloud: 1.16
     lightAbsorptionTowardSun: 1
     ambientAbsorptionTowardTop: 0.5
     ambientStrength: 0.3

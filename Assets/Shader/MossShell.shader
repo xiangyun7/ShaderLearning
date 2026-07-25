@@ -28,7 +28,7 @@
         _AOInfluence("AO Influence", Range(0, 1)) = 0.5
 
         [Header(Light)]
-        _WrapLighting("Wrap Lighting", Range(0, 1)) = 0.35
+        _WrapLighting("Wrap Lighting", Range(0, 2)) = 0.35
         _AmbientStrength("Ambient Strength", Range(0, 2)) = 0.7
         _DirectStrength("Direct Strength", Range(0, 2)) = 0.8
         _TipLighten("Tip Lighten", Range(0, 1)) = 0.15
