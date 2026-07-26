@@ -216,7 +216,7 @@ Material:
     - _ShoreWaveScale: 0.016667
     - _ShoreWaveWidth: -0.09
     - _ShorelineFoamNormalStrength: 0.35
-    - _ShorelineFoamStrength: 0.7
+    - _ShorelineFoamStrength: 1.05
     - _ShorelineShallowFoamDepth: 1.4
     - _ShorelineShallowFoamPower: 8
     - _ShorelineShallowFoamStrength: 0.55
